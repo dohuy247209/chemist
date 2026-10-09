@@ -1,0 +1,972 @@
+:root {
+  --chem-bg: #14151f;
+  --chem-panel: #191921;
+  --chem-header: #0e0f19;
+  --chem-row: #1c1c25;
+  --chem-line: #29292d;
+  --chem-ink: #d5d6df;
+  --chem-muted: #858593;
+  --chem-blue: #8ab4f8;
+  --chem-row-hover: #20212b;
+  --chem-row-active: #2c2f3e;
+  --chem-scroll-track: #14151f;
+  --chem-scroll-thumb: #44444e;
+  --chem-scroll-thumb-hover: #686878;
+  --chem-range-fill: #3f4354;
+  --chem-range-track: #23232d;
+  --chem-control-off: #35363e;
+  --chem-control-on: #747784;
+  --chem-divider: #30313c;
+  --chem-hint-bg: #0e0f19;
+  --chem-hint-ink: #c5c5cc;
+  --chem-toast-bg: #30313e;
+  --chem-separator: #51515d;
+  --chem-primary: #3f4354;
+}
+
+[data-theme="light"] {
+  --chem-bg: #f0f4f9;
+  --chem-panel: #fff;
+  --chem-header: #fff;
+  --chem-row: #f7f8fa;
+  --chem-line: #dfe3ea;
+  --chem-ink: #202124;
+  --chem-muted: #5f6368;
+  --chem-blue: #0b57d0;
+  --chem-row-hover: #eef2f7;
+  --chem-row-active: #e8f0fe;
+  --chem-scroll-track: #f0f4f9;
+  --chem-scroll-thumb: #c5ccd6;
+  --chem-scroll-thumb-hover: #aab4c2;
+  --chem-range-fill: #0b57d0;
+  --chem-range-track: #dfe3ea;
+  --chem-control-off: #c5ccd6;
+  --chem-control-on: #0b57d0;
+  --chem-divider: #dfe3ea;
+  --chem-hint-bg: #fff;
+  --chem-hint-ink: #202124;
+  --chem-toast-bg: #202124;
+  --chem-separator: #9aa0a6;
+  --chem-primary: #0b57d0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-width: 360px;
+  margin: 0;
+  overflow: hidden;
+  background: var(--chem-bg);
+  color: var(--chem-ink);
+}
+
+html {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  display: block;
+  font: 13px/1.45 "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.chem-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--chem-bg);
+}
+
+.chem-header.matter-header-outer {
+  position: relative;
+  z-index: 100;
+  flex: 0 0 auto;
+  width: 100%;
+  background: var(--chem-header);
+  border-bottom: 1px solid var(--chem-line);
+}
+
+.chem-header .matter-header-inner {
+  gap: 12px;
+  box-sizing: border-box;
+  height: 48px;
+  min-height: 0;
+  padding: 5px 12px;
+}
+
+.chem-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  color: var(--chem-muted);
+  text-decoration: none;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.chem-brand b {
+  color: var(--chem-ink);
+}
+
+.chem-logo {
+  color: #76f09b;
+  font-size: 24px;
+}
+
+.chem-menus {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.chem-menus .menu {
+  position: relative;
+}
+
+.chem-menus .mbtn {
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--chem-ink);
+  font-size: 12px;
+  padding: 6px 7px;
+  cursor: pointer;
+}
+
+.chem-menus .mbtn:hover,
+.chem-menus .menu:focus-within .mbtn {
+  background: var(--chem-row);
+}
+
+.chem-menus .drop {
+  position: absolute;
+  z-index: 150;
+  top: 100%;
+  left: 0;
+  display: none;
+  min-width: 220px;
+  padding: 5px;
+  border: 1px solid var(--chem-line);
+  border-radius: 4px;
+  background: var(--chem-panel);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+}
+
+.chem-menus .menu:hover .drop,
+.chem-menus .menu:focus-within .drop {
+  display: block;
+}
+
+.chem-menus .drop button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--chem-ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chem-menus .drop button:hover {
+  background: var(--chem-row);
+}
+
+.chem-menus .drop hr {
+  border: 0;
+  border-top: 1px solid var(--chem-line);
+}
+
+.chem-menus kbd {
+  border: 1px solid var(--chem-line);
+  border-radius: 2px;
+  background: var(--chem-bg);
+  color: var(--chem-muted);
+}
+
+.chem-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 100px;
+  max-width: 300px;
+  flex: 1 1 180px;
+  padding: 6px 12px;
+  border-radius: 18px;
+  background: var(--chem-row);
+  color: var(--chem-muted);
+}
+
+.chem-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--chem-ink);
+}
+
+.chem-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.chem-header-actions .matter-btn,
+.chem-action {
+  width: auto;
+  min-width: 34px;
+  padding: 0 9px;
+  color: var(--chem-ink);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.chem-header-actions .matter-btn {
+  height: 34px;
+  border-radius: 4px;
+}
+
+.chem-header-actions .matter-btn:hover,
+.chem-header-actions .matter-btn:focus-visible {
+  background: var(--chem-row-hover);
+}
+
+.chem-header-actions .btn.primary.header-export {
+  border: 0;
+  background: transparent;
+  color: var(--chem-ink);
+}
+
+.chem-header-actions .btn.primary.header-export:hover,
+.chem-header-actions .btn.primary.header-export:focus-visible {
+  background: var(--chem-row-hover);
+  color: var(--chem-ink);
+}
+
+.toolbar .matter-btn {
+  width: auto;
+  min-width: 34px;
+  height: 31px;
+  padding: 0 8px;
+  border: 1px solid var(--chem-line);
+  border-radius: 4px;
+  background: var(--chem-row);
+  color: var(--chem-ink);
+  cursor: pointer;
+}
+
+.toolbar .matter-btn:hover,
+.toolbar .matter-btn:focus-visible {
+  background: var(--chem-row-hover);
+  color: var(--chem-ink);
+}
+
+.chem-header-actions .btn {
+  white-space: nowrap;
+}
+
+.btn {
+  min-height: 30px;
+  padding: 6px 12px;
+  border: 1px solid var(--chem-line);
+  border-radius: 4px;
+  background: var(--chem-row);
+  color: var(--chem-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn.primary {
+  border-color: var(--chem-primary);
+  background: var(--chem-primary);
+  color: #fff;
+}
+
+.avatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #7b1fa2;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.avatar.has-img {
+  background-position: center;
+  background-size: cover;
+  color: transparent;
+}
+
+.toolbar {
+  z-index: 20;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding: 3px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--chem-panel);
+  border-bottom: 1px solid var(--chem-line);
+  scrollbar-color: var(--chem-scroll-thumb) var(--chem-scroll-track);
+  scrollbar-width: thin;
+}
+
+.toolbar::-webkit-scrollbar,
+.chem-library-scroll::-webkit-scrollbar,
+.chem-panel-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.toolbar::-webkit-scrollbar-track,
+.chem-library-scroll::-webkit-scrollbar-track,
+.chem-panel-scroll::-webkit-scrollbar-track {
+  background: var(--chem-scroll-track);
+}
+
+.toolbar::-webkit-scrollbar-thumb,
+.chem-library-scroll::-webkit-scrollbar-thumb,
+.chem-panel-scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--chem-scroll-thumb);
+}
+
+.toolbar::-webkit-scrollbar-thumb:hover,
+.chem-library-scroll::-webkit-scrollbar-thumb:hover,
+.chem-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--chem-scroll-thumb-hover);
+}
+
+.toolbar::-webkit-scrollbar-button,
+.chem-library-scroll::-webkit-scrollbar-button,
+.chem-panel-scroll::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+}
+
+.tgroup {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--chem-bg);
+  white-space: nowrap;
+}
+
+.tlabel {
+  padding: 0 4px;
+  color: var(--chem-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.tool,
+.bondbtn,
+.atom {
+  position: relative;
+  min-width: 31px;
+  height: 31px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chem-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tool:hover,
+.bondbtn:hover,
+.atom:hover,
+.tool.active,
+.bondbtn.active,
+.atom.active {
+  background: var(--chem-row-active);
+  color: var(--chem-blue);
+}
+
+.tool small {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  color: var(--chem-muted);
+  font-size: 8px;
+}
+
+.tool.danger.active {
+  color: #ff8177;
+}
+
+#chainLen {
+  width: 42px;
+  border: 1px solid var(--chem-line);
+  border-radius: 3px;
+  padding: 4px;
+  background: var(--chem-row);
+  color: var(--chem-ink);
+  font: inherit;
+}
+
+.chem-workspace {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 245px minmax(0, 1fr) 245px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chem-library.ins-container,
+body .dg.main.chem-properties {
+  position: relative;
+  z-index: 5;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  display: flex;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  transform: none;
+  transition: none;
+  background: var(--chem-panel);
+  color: var(--chem-ink);
+  box-shadow: none;
+}
+
+.chem-library.ins-container {
+  flex-direction: column;
+  border-right: 1px solid var(--chem-line);
+}
+
+.chem-panel-title {
+  flex: 0 0 auto;
+  padding: 13px 14px 10px;
+  color: var(--chem-ink);
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--chem-line);
+}
+
+.chem-library .ins-search-box {
+  flex: 0 0 auto;
+  width: calc(100% - 20px);
+  margin: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--chem-line);
+  border-radius: 4px;
+  background: var(--chem-bg);
+  color: var(--chem-ink);
+}
+
+.chem-library .ins-search-box::placeholder {
+  color: var(--chem-muted);
+}
+
+.chem-library-scroll,
+.chem-panel-scroll {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--chem-scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.chem-library-scroll {
+  padding: 0 10px 12px;
+}
+
+.chem-library .side-sec h3,
+.chem-property-group h3 {
+  margin: 16px 0 11px;
+  color: var(--chem-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+
+.chem-library .tpl-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.chem-library .tpl {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 2px 3px;
+  border: 0;
+  border-bottom: 1px solid var(--chem-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--chem-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chem-library .tpl svg {
+  display: block;
+  width: 52px;
+  height: 32px;
+  flex: 0 0 52px;
+}
+
+.chem-library .tpl:hover {
+  background: var(--chem-row-hover);
+}
+
+.chem-library .tpl.active {
+  background: var(--chem-row-active);
+  outline: 0;
+}
+
+.chem-library .tpl span {
+  overflow: hidden;
+  padding-left: 7px;
+  color: var(--chem-ink);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chem-library .side-tip {
+  padding: 8px;
+  background: var(--chem-bg);
+  color: var(--chem-muted);
+  font-size: 11px;
+}
+
+.chem-canvas-area {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--chem-bg);
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+#stage.panning {
+  cursor: grab;
+}
+
+#grid path {
+  stroke: var(--chem-line);
+}
+
+#gridTriangle path {
+  stroke: var(--chem-line);
+}
+
+.chem-canvas-area .hint {
+  top: 12px;
+  max-width: 90%;
+  padding: 6px 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--chem-hint-bg);
+  color: var(--chem-hint-ink);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.chem-canvas-area .zoombar {
+  bottom: 12px;
+  left: 12px;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--chem-line);
+  border-radius: 4px;
+  background: var(--chem-panel);
+  box-shadow: none;
+}
+
+.chem-canvas-area .zoombar button {
+  min-width: 30px;
+  height: 28px;
+  border-radius: 3px;
+  color: var(--chem-ink);
+}
+
+.chem-canvas-area .zoombar button:hover {
+  background: var(--chem-row);
+}
+
+#gridOrientationBtn[hidden] {
+  display: none;
+}
+
+body .dg.main.chem-properties {
+  flex-direction: column;
+  padding: 0;
+  border-left: 1px solid var(--chem-line);
+}
+
+.chem-panel-scroll {
+  flex: 1 1 auto;
+  padding: 4px 14px 16px;
+}
+
+.chem-panel-scroll > .tabpane {
+  display: none;
+  padding: 0;
+}
+
+.chem-panel-scroll > .tabpane.active {
+  display: block;
+}
+
+.chem-property-group {
+  padding-bottom: 15px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--chem-line);
+}
+
+.chem-property-group:last-child {
+  border-bottom: 0;
+}
+
+.chem-property-group p,
+.chem-property-group .muted {
+  color: var(--chem-muted);
+}
+
+.chem-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  margin: 0 -14px;
+  padding: 0 14px;
+  background: var(--chem-row);
+  color: var(--chem-muted);
+  font-size: 11px;
+}
+
+.chem-option input[type="range"] {
+  width: 66%;
+  min-width: 20px;
+  height: 22px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  outline: 0;
+  background: linear-gradient(to right, var(--chem-range-fill) 0%, var(--chem-range-fill) var(--range-progress, 50%), var(--chem-range-track) var(--range-progress, 50%), var(--chem-range-track) 100%);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: ew-resize;
+}
+
+.chem-option input[type="range"]::-webkit-slider-runnable-track {
+  height: 22px;
+  background: transparent;
+}
+
+.chem-option input[type="range"]::-moz-range-track {
+  height: 22px;
+  background: transparent;
+}
+
+.chem-option input[type="range"]::-webkit-slider-thumb {
+  width: 1px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.chem-option input[type="range"]::-moz-range-thumb {
+  width: 1px;
+  height: 22px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.chem-option input[type="checkbox"] {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  margin: 0 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: var(--chem-control-off);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.chem-option input[type="checkbox"]:checked {
+  background: var(--chem-control-on);
+}
+
+.chem-option input[type="color"] {
+  width: 35px;
+  height: 23px;
+  margin-left: auto;
+  padding: 1px;
+  border: 1px solid var(--chem-line);
+  background: var(--chem-row);
+}
+
+.chem-option b {
+  min-width: 25px;
+  color: var(--chem-ink);
+  text-align: right;
+  font-weight: 400;
+}
+
+.chem-action {
+  min-height: 34px;
+  height: auto;
+  flex: 0 0 100%;
+  width: 100%;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--chem-ink);
+  font-size: 11px;
+  text-align: left;
+}
+
+.chem-action:hover,
+.chem-action:focus-visible {
+  background: var(--chem-row-hover);
+  color: var(--chem-ink);
+}
+
+.chem-export-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.chem-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  margin: 0 -14px;
+  border-bottom: 1px solid var(--chem-line);
+}
+
+.chem-tabs .tab {
+  flex: 1 1 50%;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--chem-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chem-tabs .tab.active {
+  border-bottom-color: var(--chem-blue);
+  color: var(--chem-blue);
+}
+
+.chem-panel-scroll .code {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 3px;
+  background: var(--chem-bg);
+  color: var(--chem-ink);
+  font-size: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.propgrid {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: var(--chem-muted);
+  font-size: 11px;
+}
+
+.propgrid input,
+.propgrid select {
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--chem-line);
+  border-radius: 3px;
+  background: var(--chem-bg);
+  color: var(--chem-ink);
+}
+
+.propgrid input[type="color"] {
+  width: 42px;
+  height: 26px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.chem-statusbar {
+  z-index: 10;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 25px;
+  padding: 3px 10px;
+  border-top: 1px solid var(--chem-line);
+  background: var(--chem-header);
+  color: var(--chem-muted);
+  font-size: 10px;
+}
+
+.chem-statusbar .sep {
+  color: var(--chem-separator);
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+.modal-back {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, .55);
+}
+
+.modal-back.show {
+  display: flex;
+}
+
+.modal {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--chem-line);
+  border-radius: 6px;
+  background: var(--chem-panel);
+  color: var(--chem-ink);
+}
+
+.modal h2 {
+  margin-top: 0;
+  font-size: 17px;
+}
+
+.modal .btn {
+  cursor: pointer;
+}
+
+#toast {
+  position: fixed;
+  z-index: 300;
+  bottom: 38px;
+  left: 50%;
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  border-radius: 4px;
+  background: var(--chem-toast-bg);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+
+#toast.show {
+  opacity: 1;
+}
+
+@media (max-width: 1000px) {
+  .chem-workspace {
+    grid-template-columns: 205px minmax(0, 1fr) 220px;
+  }
+
+  .chem-menus .mbtn {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+}
+
+@media (max-width: 720px) {
+  .chem-brand span:last-child,
+  .chem-menus .menu:nth-child(n + 4),
+  .chem-header-actions .btn {
+    display: none;
+  }
+
+  .chem-workspace {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+
+  .chem-header .matter-header-inner {
+    gap: 5px;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .chem-search {
+    max-width: 180px;
+  }
+
+  body .dg.main.chem-properties {
+    display: none;
+  }
+
+  .chem-library .tpl-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chem-statusbar > span:last-child,
+  .chem-statusbar #stPos,
+  .chem-statusbar #stSnap {
+    display: none;
+  }
+}
