@@ -15,6 +15,17 @@ window.ChemEditor = (() => {
     const r = stage.getBoundingClientRect();
     return { x: (e.clientX - r.left - st.view.x) / st.view.k, y: (e.clientY - r.top - st.view.y) / st.view.k };
   }
+  function normalizeSelection(selection) {
+    if (!selection) return null;
+    if (selection.type === 'atom') return M.atom(selection.id) ? selection : null;
+    if (selection.type === 'bond') return M.bond(selection.id) ? selection : null;
+    if (selection.type === 'text') return M.textItem(selection.id) ? selection : null;
+    if (selection.type !== 'multi') return null;
+    const ids = (selection.ids || []).filter(id => M.atom(id));
+    const bondIds = (selection.bondIds || []).filter(id => M.bond(id));
+    const textIds = (selection.textIds || []).filter(id => M.textItem(id));
+    return selectionFromItems(ids, bondIds, textIds);
+  }
   function toggleGridOrientation() {
     if (st.gridType !== 'triangle') return;
     const angle = st.gridOrientation === 'horizontal' ? Math.PI / 2 : -Math.PI / 2;
@@ -211,7 +222,9 @@ window.ChemEditor = (() => {
         'pointer-events': 'none'
       });
     }
-    const selection = draggingLasso ? lassoSelection(st.drag.points) : st.sel;
+    const draggingBox = st.drag && st.drag.mode === 'box';
+    const selection = draggingLasso ? lassoSelection(st.drag.points)
+      : draggingBox ? boxSelection(st.drag) : st.sel;
     drawSelectionOverlay(selection, draggingLasso);
     if (st.drag) drawDragGhost();
     else if (st.tool === 'erase' && st.hover) drawHover();
@@ -468,7 +481,7 @@ window.ChemEditor = (() => {
       const bondIds = [];
       for (const bd of frag.bonds) {
         const b = M.addBond(ids[bd[0]], ids[bd[1]], bd[2] || 1, 'solid');
-        if (b) bondIds.push(b.id);
+        bondIds.push(b ? b.id : null);
       }
       const rings = frag.rings || (frag.ring ? [frag.ring] : []);
       for (const rg of rings) {
@@ -560,6 +573,10 @@ window.ChemEditor = (() => {
         st.drag = { mode: 'box', x0: p.x, y0: p.y, x1: p.x, y1: p.y };
       }
       redraw(); return;
+    }
+    if (st.tool === 'bond' && hitB) {
+      M.transact(() => M.cycleBondOrder(hitB.id), 'bond-order');
+      return;
     }
     if (st.tool === 'erase') { M.beginTx(); st.changed = false; st.drag = { mode: 'erase' }; eraseAt(p); return; }
     if (st.tool === 'chain') { st.drag = { mode: 'chain', start: snapP(p), cur: snapP(p) }; return; }
@@ -664,8 +681,7 @@ window.ChemEditor = (() => {
     if (d.mode === 'box') {
       const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
       const y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
-      const ids = M.S.atoms.filter(a => a.x >= x0 && a.x <= x1 && a.y >= y0 && a.y <= y1).map(a => a.id);
-      st.sel = ids.length ? (ids.length === 1 ? { type: 'atom', id: ids[0] } : { type: 'multi', ids }) : null;
+      st.sel = boxSelection({ x0, y0, x1, y1 });
       redraw(); return;
     }
     if (d.mode === 'chain') {
@@ -683,7 +699,14 @@ window.ChemEditor = (() => {
       const A = M.atom(d.from);
       if (A && d.moved && d.cur) {
         const hit = M.nearAtom(d.cur, 14);
-        if (hit && hit.id !== d.from) { M.addBond(d.from, hit.id, st.order, st.bstyle); M.markTx(); }
+        if (hit && hit.id !== d.from) {
+          const existing = M.S.bonds.find(bond =>
+            (bond.a === d.from && bond.b === hit.id) || (bond.a === hit.id && bond.b === d.from)
+          );
+          if (existing) M.cycleBondOrder(existing.id);
+          else M.addBond(d.from, hit.id, st.order, st.bstyle);
+          M.markTx();
+        }
         else if (M.dist(A, d.cur) > 6) {
           const na = M.addAtom(d.cur.x, d.cur.y, d.createdFrom ? 'C' : st.el);
           M.addBond(d.from, na.id, st.order, st.bstyle); M.markTx();
@@ -721,6 +744,21 @@ window.ChemEditor = (() => {
       return a && b && pointInPolygon({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, points);
     }).map(bond => bond.id);
     const textIds = M.S.texts.filter(annotation => pointInPolygon(annotation, points)).map(annotation => annotation.id);
+    return selectionFromItems(ids, bondIds, textIds);
+  }
+  function boxSelection(box) {
+    const x0 = Math.min(box.x0, box.x1), x1 = Math.max(box.x0, box.x1);
+    const y0 = Math.min(box.y0, box.y1), y1 = Math.max(box.y0, box.y1);
+    const inside = point => point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1;
+    const ids = M.S.atoms.filter(inside).map(atom => atom.id);
+    const bondIds = M.S.bonds.filter(bond => {
+      const a = M.atom(bond.a), b = M.atom(bond.b);
+      return a && b && inside({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    }).map(bond => bond.id);
+    const textIds = M.S.texts.filter(inside).map(annotation => annotation.id);
+    return selectionFromItems(ids, bondIds, textIds);
+  }
+  function selectionFromItems(ids, bondIds, textIds) {
     const count = ids.length + bondIds.length + textIds.length;
     if (!count) return null;
     if (count === 1) {
@@ -780,7 +818,7 @@ window.ChemEditor = (() => {
     else if (k === 'g') toggleGrid();
     else if (k === 't') toggleGridType();
     else if (k === 'y') toggleGridOrientation();
-    else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12);
+    else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12, e.altKey);
     else if (k === 'd') { if (window.ChemApp && ChemApp.actions['toggle-theme']) ChemApp.actions['toggle-theme'](); }
     else if (k === '0') fitView();
     else if (k === 'escape') { st.tpl = null; st.sel = null; syncTplButtons(); redraw(); }
@@ -860,9 +898,8 @@ window.ChemEditor = (() => {
     document.querySelectorAll('.tpl').forEach(b => b.classList.toggle('active', b.dataset.frag === st.tpl));
   }
   function selectAll() {
-    if (!M.S.atoms.length) return;
     const ids = M.S.atoms.map(a => a.id);
-    st.sel = ids.length === 1 ? { type: 'atom', id: ids[0] } : { type: 'multi', ids };
+    st.sel = selectionFromItems(ids, M.S.bonds.map(bond => bond.id), M.S.texts.map(annotation => annotation.id));
     redraw();
   }
   function deleteSel() {
@@ -879,7 +916,7 @@ window.ChemEditor = (() => {
     }, 'delete');
     st.sel = null; redraw();
   }
-  function rotateSelection(angle) {
+  function rotateSelection(angle, wholeComponent) {
     if (st.tpl) {
       const step = st.gridType === 'triangle' ? Math.PI / 3 : Math.PI / 6;
       st.tplRotation += Math.sign(angle || 1) * step;
@@ -904,25 +941,55 @@ window.ChemEditor = (() => {
     } else if (st.sel.type === 'atom') {
       const pivot = M.atom(st.sel.id);
       if (!pivot) return false;
+      if (wholeComponent) {
+        const ids = M.component(pivot.id);
+        M.transact(() => rotateAtomGroup(Array.from(ids).map(id => M.atom(id)), angle, pivot, ids), 'rotate');
+        redraw();
+        return true;
+      }
       const ringIds = ringGroupForAtom(pivot.id);
       if (ringIds) {
-        M.transact(() => rotateAtomGroup(Array.from(ringIds).map(id => M.atom(id)), angle, pivot, ringIds), 'rotate');
+        const ids = ringGroupWithBranches(ringIds);
+        const outside = M.S.bonds.filter(bond => ids.has(bond.a) !== ids.has(bond.b));
+        if (outside.length > 1) {
+          setHint(text(
+            'Vòng và nhánh nối ra ngoài qua nhiều liên kết; hãy chọn một liên kết để xoay nhánh.',
+            'The ring and its branches have several outside bonds; select one bond to rotate a branch.'
+          ));
+          return true;
+        }
+        const center = outside.length
+          ? M.atom(ids.has(outside[0].a) ? outside[0].b : outside[0].a)
+          : pivot;
+        M.transact(() => rotateAtomGroup(Array.from(ids).map(id => M.atom(id)), angle, center, ids), 'rotate');
         redraw();
         return true;
       }
       const neighbors = M.neighbors(pivot.id);
-      const branches = neighbors.length === 1
-        ? [{ ids: new Set([pivot.id]), pivot: M.atom(neighbors[0]) }]
-        : neighbors.map(id => {
-          const branch = componentWithoutBond(id, { a: pivot.id, b: id });
-          return branch.has(pivot.id) ? null : { ids: branch, pivot };
-        }).filter(Boolean);
-      if (!branches.length) {
+      if (!neighbors.length) {
         setHint(text('Nguyên tử này không có nhánh rời để xoay.', 'This atom has no separate branch to rotate.'));
         return true;
       }
-      M.transact(() => branches.forEach(branch =>
-        rotateAtomGroup(Array.from(branch.ids).map(id => M.atom(id)), angle, branch.pivot, branch.ids)
+      const parent = neighbors
+        .map(id => ({
+          id,
+          size: componentWithoutBond(id, { a: pivot.id, b: id }).size
+        }))
+        .sort((a, b) => b.size - a.size)[0];
+      const edge = { a: pivot.id, b: parent.id };
+      const ids = componentWithoutBond(pivot.id, edge);
+      if (ids.has(parent.id)) {
+        setHint(text(
+          'Không thể tách nhánh tại liên kết này; hãy chọn liên kết nhánh để xoay.',
+          'This branch cannot be separated at the selected atom; select a branch bond to rotate it.'
+        ));
+        return true;
+      }
+      M.transact(() => rotateAtomGroup(
+        Array.from(ids).map(id => M.atom(id)),
+        angle,
+        M.atom(parent.id),
+        ids
       ), 'rotate');
       redraw();
       return true;
@@ -950,11 +1017,7 @@ window.ChemEditor = (() => {
   }
   function ringGroupForAtom(atomId) {
     const rings = M.S.rings.map(ring => {
-      const ids = ring.atoms
-        ? new Set(ring.atoms.filter(id => M.atom(id)))
-        : new Set(M.S.atoms
-          .filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10)
-          .map(atom => atom.id));
+      const ids = ringAtomIds(ring);
       return { ring, ids };
     }).filter(item => item.ids.size >= 3);
     const included = new Set(rings.filter(item => item.ids.has(atomId)));
@@ -969,6 +1032,26 @@ window.ChemEditor = (() => {
         included.add(item);
         item.ids.forEach(id => ids.add(id));
         changed = true;
+      }
+    }
+    return ids;
+  }
+  function ringAtomIds(ring) {
+    return ring.atoms
+      ? new Set(ring.atoms.filter(id => M.atom(id)))
+      : new Set(M.S.atoms
+        .filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10)
+        .map(atom => atom.id));
+  }
+  function ringGroupWithBranches(ringIds) {
+    const allRingIds = new Set();
+    for (const ring of M.S.rings) ringAtomIds(ring).forEach(id => allRingIds.add(id));
+    const ids = new Set(ringIds), queue = Array.from(ringIds);
+    while (queue.length) {
+      for (const neighbor of M.neighbors(queue.pop())) {
+        if (ids.has(neighbor) || allRingIds.has(neighbor)) continue;
+        ids.add(neighbor);
+        queue.push(neighbor);
       }
     }
     return ids;
@@ -1069,7 +1152,10 @@ window.ChemEditor = (() => {
     window.addEventListener('resize', positionTextInput);
     document.addEventListener('keydown', onKey);
     document.addEventListener('keyup', onKeyUp);
-    M.onChange(() => redraw());
+    M.onChange(what => {
+      st.sel = what === 'open' ? null : normalizeSelection(st.sel);
+      redraw();
+    });
     const r = stage.getBoundingClientRect();
     st.view.x = r.width / 2; st.view.y = r.height / 2;
     applyView(); redraw();

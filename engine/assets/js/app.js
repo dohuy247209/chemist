@@ -5,6 +5,7 @@ window.ChemApp = (() => {
   const I = window.ChemI18n;
   const text = (vi, en) => I ? I.text(vi, en) : vi;
   const SETTINGS_KEY = 'chem-editor-settings';
+  const AUTOSAVE_KEY = 'chem-editor-draft-v1';
   const LABEL_COLOR_KEYS = ['N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'OH', 'NH2', 'SH', 'COOH', 'CHO', 'COOCH3', 'NO2', 'CN', 'OCH3'];
   const COLOR_PRESET_SOURCES = [
     ['ink', 'Màu chữ (C)', 'Text color (C)'], ['white', 'Trắng', 'White'],
@@ -363,7 +364,8 @@ window.ChemApp = (() => {
       <tr><td>V / H / A / E / Z</td><td>Select · Pan · Atom · Erase · Carbon chain</td></tr>
       <tr><td>1 / 2 / 3</td><td>Single / double / triple bond</td></tr>
       <tr><td>4 / 5</td><td>Solid wedge / hashed wedge</td></tr>
-      <tr><td>R / Shift+R</td><td>Rotate the selected atom's branch or ring around it by ±15°; rotate a template by one grid step before placing</td></tr>
+      <tr><td>R / Shift+R</td><td>Rotate a terminal branch or a ring with its substituents by ±15°; select a bond to rotate one branch at a junction, or rotate a template before placing it</td></tr>
+      <tr><td>Alt+R / Alt+Shift+R</td><td>Rotate the selected atom's whole connected molecule by ±15°</td></tr>
       <tr><td>Shift + drag</td><td>Draw freely without angle snapping</td></tr>
       <tr><td>Middle mouse / Space</td><td>Pan canvas</td></tr>
       <tr><td>Ctrl+Z / Ctrl+Y</td><td>Undo / Redo</td></tr>
@@ -377,7 +379,8 @@ window.ChemApp = (() => {
       <tr><td>V / H / A / E / Z</td><td>Chọn · Kéo khung · Nguyên tử · Tẩy · Mạch zigzag</td></tr>
       <tr><td>1 / 2 / 3</td><td>Liên kết đơn / đôi / ba</td></tr>
       <tr><td>4 / 5</td><td>Nét đậm (wedge) / Nét đứt (hash)</td></tr>
-      <tr><td>R / Shift+R</td><td>Xoay nhánh hoặc vòng của nguyên tử đang chọn quanh nó ±15°; xoay mẫu trước khi đặt theo bước lưới</td></tr>
+      <tr><td>R / Shift+R</td><td>Xoay nhánh tận cùng hoặc vòng kèm nhóm thế ±15°; chọn liên kết để xoay một nhánh tại nút giao, hoặc xoay mẫu trước khi đặt</td></tr>
+      <tr><td>Alt+R / Alt+Shift+R</td><td>Xoay toàn bộ phân tử liên thông quanh nguyên tử đang chọn ±15°</td></tr>
       <tr><td>Shift + kéo</td><td>Vẽ tự do, không bắt góc theo lưới</td></tr>
       <tr><td>Chuột giữa / Space</td><td>Kéo khung nhìn</td></tr>
       <tr><td>Ctrl+Z / Ctrl+Y</td><td>Hoàn tác / Làm lại</td></tr>
@@ -535,6 +538,26 @@ window.ChemApp = (() => {
     if (u) { u.style.opacity = M.canUndo() ? 1 : .35; u.disabled = !M.canUndo(); }
     if (r) { r.style.opacity = M.canRedo() ? 1 : .35; r.disabled = !M.canRedo(); }
   }
+  function persistDraft() {
+    try { localStorage.setItem(AUTOSAVE_KEY, M.serialize()); }
+    catch (error) { console.warn('Unable to autosave the current drawing.', error); }
+  }
+  function restoreDraft() {
+    let draft;
+    try { draft = localStorage.getItem(AUTOSAVE_KEY); }
+    catch (error) {
+      console.warn('Unable to read the autosaved drawing.', error);
+      return false;
+    }
+    if (!draft) return false;
+    try {
+      M.deserialize(draft);
+      return true;
+    } catch (error) {
+      console.warn('Unable to restore the autosaved drawing.', error);
+      return false;
+    }
+  }
   function refreshLanguage() {
     updateProps();
     Ed.updateGrid();
@@ -543,6 +566,7 @@ window.ChemApp = (() => {
   // ---------- Nối sự kiện ----------
   function init() {
     restoreSettings();
+    const restoredDraft = restoreDraft();
     T.renderLibraries('');
     // Cập nhật panel thuộc tính + nút undo mỗi lần redraw (khi selection đổi).
     let lastSelKey = '';
@@ -553,7 +577,7 @@ window.ChemApp = (() => {
     };
     Ed.init();
     updateProps(); updateUndoBtns();
-    M.onChange(() => { updateProps(); updateUndoBtns(); });
+    M.onChange(() => { persistDraft(); updateProps(); updateUndoBtns(); });
 
     document.addEventListener('click', e => {
       const a = e.target.closest('[data-action]');
@@ -670,7 +694,9 @@ window.ChemApp = (() => {
       if (f) readAvatar(f);
       e.target.value = '';
     });
-    toast(text('Sẵn sàng — hãy chọn mẫu bên trái và vẽ nhé!', 'Ready — choose a template on the left and start drawing!'));
+    toast(restoredDraft
+      ? text('Đã khôi phục bản vẽ tự động lưu trên thiết bị này.', 'Restored the drawing autosaved on this device.')
+      : text('Sẵn sàng — bản vẽ tự động lưu trên thiết bị này.', 'Ready — drawings are autosaved on this device.'));
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

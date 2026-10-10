@@ -55,7 +55,39 @@ window.ChemModel = (() => {
       return !removed || Math.abs(Math.hypot(removed.x - g.cx, removed.y - g.cy) - g.r) >= 10;
     });
   }
-  function removeBond(id) { S.bonds = S.bonds.filter(b => b.id !== id); }
+  function removeBond(id) {
+    const removed = bond(id);
+    if (!removed) return;
+    S.bonds = S.bonds.filter(b => b.id !== id);
+    const hasEdge = (a, b) => S.bonds.some(edge =>
+      (edge.a === a && edge.b === b) || (edge.a === b && edge.b === a)
+    );
+    S.rings = S.rings.filter(ring => {
+      if (ring.atoms && ring.atoms.length >= 3) {
+        return ring.atoms.every((atomId, i) =>
+          hasEdge(atomId, ring.atoms[(i + 1) % ring.atoms.length])
+        );
+      }
+      const a = atom(removed.a), b = atom(removed.b);
+      if (!a || !b ||
+          Math.abs(Math.hypot(a.x - ring.cx, a.y - ring.cy) - ring.r) >= 10 ||
+          Math.abs(Math.hypot(b.x - ring.cx, b.y - ring.cy) - ring.r) >= 10) return true;
+      const edgeLength = dist(a, b);
+      return !Array.from({ length: 10 }, (_, i) => i + 3).some(vertices =>
+        Math.abs(edgeLength - 2 * ring.r * Math.sin(Math.PI / vertices)) < 10
+      );
+    });
+  }
+  function cycleBondOrder(id) {
+    const existing = bond(id);
+    if (!existing) return null;
+    existing.order = existing.order % 3 + 1;
+    existing.dbl = false;
+    existing.arom = false;
+    delete existing.cx;
+    delete existing.cy;
+    return existing;
+  }
   function addRing(cx, cy, r, aromatic) { const g = { id: S.seq++, cx, cy, r, aromatic: !!aromatic }; S.rings.push(g); return g; }
   function clearAll() { S.atoms = []; S.bonds = []; S.rings = []; S.texts = []; }
   const neighbors = id => S.bonds.filter(b => b.a === id || b.b === id).map(b => b.a === id ? b.b : b.a);
@@ -106,5 +138,5 @@ window.ChemModel = (() => {
     }
     return { x: x0 - p, y: y0 - p, w: Math.max(10, x1 - x0 + p * 2), h: Math.max(10, y1 - y0 + p * 2) };
   }
-  return { S, onChange, emit, transact, undo, redo, beginTx, markTx, endTx, canUndo, canRedo, atom, bond, textItem, addAtom, addText, addBond, removeAtom, removeBond, removeText, addRing, clearAll, neighbors, degree, bondsOf, dist, nearAtom, nearBond, component, elColor, isBareCarbon, serialize, deserialize, bbox };
+  return { S, onChange, emit, transact, undo, redo, beginTx, markTx, endTx, canUndo, canRedo, atom, bond, textItem, addAtom, addText, addBond, cycleBondOrder, removeAtom, removeBond, removeText, addRing, clearAll, neighbors, degree, bondsOf, dist, nearAtom, nearBond, component, elColor, isBareCarbon, serialize, deserialize, bbox };
 })();
