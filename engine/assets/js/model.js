@@ -42,7 +42,15 @@ window.ChemModel = (() => {
     const b = Object.assign({ id: S.seq++, a: ai, b: bi, order: order || 1, style: style || 'solid', arom: false, dbl: false }, extra || {});
     S.bonds.push(b); return b;
   }
-  function removeAtom(id) { S.atoms = S.atoms.filter(a => a.id !== id); S.bonds = S.bonds.filter(b => b.a !== id && b.b !== id); }
+  function removeAtom(id) {
+    const removed = atom(id);
+    S.atoms = S.atoms.filter(a => a.id !== id);
+    S.bonds = S.bonds.filter(b => b.a !== id && b.b !== id);
+    S.rings = S.rings.filter(g => {
+      if (g.atoms) return !g.atoms.includes(id);
+      return !removed || Math.abs(Math.hypot(removed.x - g.cx, removed.y - g.cy) - g.r) >= 10;
+    });
+  }
   function removeBond(id) { S.bonds = S.bonds.filter(b => b.id !== id); }
   function addRing(cx, cy, r, aromatic) { const g = { id: S.seq++, cx, cy, r, aromatic: !!aromatic }; S.rings.push(g); return g; }
   function clearAll() { S.atoms = []; S.bonds = []; S.rings = []; S.texts = []; }

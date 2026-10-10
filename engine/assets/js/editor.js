@@ -390,6 +390,7 @@ window.ChemEditor = (() => {
         const cx = fusion ? ox + fusion.scale * (fusion.cos * rg.cx - fusion.sin * rg.cy) : ox + center.x;
         const cy = fusion ? oy + fusion.scale * (fusion.sin * rg.cx + fusion.cos * rg.cy) : oy + center.y;
         const g = M.addRing(cx, cy, rg.r * (fusion ? fusion.scale : 1), rg.aromatic);
+        g.atoms = rg.vertices ? rg.vertices.map(i => ids[i]) : undefined;
         if (rg.dbl && rg.dbl.length) g.dblIds = rg.dbl.map(i => bondIds[i]).filter(Boolean);
       }
       if (near && !isRing) M.addBond(near.id, ids[frag.anchor != null ? frag.anchor : 0], frag.order || 1, 'solid');
@@ -486,7 +487,15 @@ window.ChemEditor = (() => {
     if (d.mode === 'move') {
       const dx = p.x - d.last.x, dy = p.y - d.last.y;
       if (Math.abs(dx) + Math.abs(dy) > 0.5) {
+        const movedIds = new Set(d.ids);
+        const rings = M.S.rings.filter(ring => ring.atoms
+          ? ring.atoms.every(id => movedIds.has(id))
+          : d.ids.filter(id => {
+            const atom = M.atom(id);
+            return atom && Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10;
+          }).length >= 3);
         for (const id of d.ids) { const a = M.atom(id); if (a) { a.x = Math.round((a.x + dx) * 10) / 10; a.y = Math.round((a.y + dy) * 10) / 10; } }
+        for (const ring of rings) { ring.cx += dx; ring.cy += dy; }
         d.last = p; d.moved = true; M.markTx(); redraw();
       }
       return;
@@ -607,7 +616,7 @@ window.ChemEditor = (() => {
     else if (k === 'g') toggleGrid();
     else if (k === 't') toggleGridType();
     else if (k === 'y') toggleGridOrientation();
-    else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 6 : Math.PI / 6);
+    else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12);
     else if (k === 'd') { if (window.ChemApp && ChemApp.actions['toggle-theme']) ChemApp.actions['toggle-theme'](); }
     else if (k === '0') fitView();
     else if (k === 'escape') { st.tpl = null; st.sel = null; syncTplButtons(); redraw(); }
@@ -707,50 +716,139 @@ window.ChemEditor = (() => {
       return true;
     }
     if (!st.sel) return false;
-    const selected = st.sel.type === 'atom' ? [st.sel.id]
-      : st.sel.type === 'bond' ? [M.bond(st.sel.id)].filter(Boolean).flatMap(b => [b.a, b.b])
-        : st.sel.ids || [];
-    const ids = new Set();
-    for (const id of selected) if (M.atom(id)) for (const atomId of M.component(id)) ids.add(atomId);
-    const atoms = Array.from(ids).map(id => M.atom(id)).filter(Boolean);
-    if (atoms.length < 2) return false;
-    M.transact(() => rotateAtomGroup(atoms, angle), 'rotate');
+    let ids;
+    if (st.sel.type === 'bond') {
+      const bond = M.bond(st.sel.id);
+      if (!bond) return false;
+      ids = branchBySide(bond);
+      if (!ids) {
+        setHint(text('Liên kết nằm trong vòng; hãy quét chọn các nguyên tử cần xoay.', 'Bond is in a ring; box-select the atoms to rotate.'));
+        return true;
+      }
+    } else if (st.sel.type === 'atom') {
+      const pivot = M.atom(st.sel.id);
+      if (!pivot) return false;
+      const ringIds = ringGroupForAtom(pivot.id);
+      if (ringIds) {
+        M.transact(() => rotateAtomGroup(Array.from(ringIds).map(id => M.atom(id)), angle, pivot, ringIds), 'rotate');
+        redraw();
+        return true;
+      }
+      const neighbors = M.neighbors(pivot.id);
+      const branches = neighbors.length === 1
+        ? [{ ids: new Set([pivot.id]), pivot: M.atom(neighbors[0]) }]
+        : neighbors.map(id => {
+          const branch = componentWithoutBond(id, { a: pivot.id, b: id });
+          return branch.has(pivot.id) ? null : { ids: branch, pivot };
+        }).filter(Boolean);
+      if (!branches.length) {
+        setHint(text('Nguyên tử này không có nhánh rời để xoay.', 'This atom has no separate branch to rotate.'));
+        return true;
+      }
+      M.transact(() => branches.forEach(branch =>
+        rotateAtomGroup(Array.from(branch.ids).map(id => M.atom(id)), angle, branch.pivot, branch.ids)
+      ), 'rotate');
+      redraw();
+      return true;
+    } else ids = new Set(st.sel.ids || []);
+    ids = new Set(Array.from(ids).filter(id => M.atom(id)));
+    if (!ids.size) return false;
+
+    const links = M.S.bonds.filter(bond => ids.has(bond.a) !== ids.has(bond.b));
+    let pivot = null;
+    if (links.length === 1) pivot = M.atom(ids.has(links[0].a) ? links[0].b : links[0].a);
+    else if (links.length > 1) {
+      setHint(text(
+        'Vùng chọn nối với phần còn lại qua nhiều liên kết; xoay sẽ làm méo cấu trúc.',
+        'Selection has several outside bonds; rotating would distort it.'
+      ));
+      return true;
+    } else if (ids.size < 2) {
+      setHint(text('Nguyên tử này không gắn với cấu trúc nào để xoay.', 'This isolated atom has nothing to rotate.'));
+      return true;
+    }
+
+    M.transact(() => rotateAtomGroup(Array.from(ids).map(id => M.atom(id)), angle, pivot, ids), 'rotate');
     redraw();
     return true;
   }
-  function rotateAtomGroup(atoms, angle) {
-    if (atoms.length < 2) return;
-    const center = {
+  function ringGroupForAtom(atomId) {
+    const rings = M.S.rings.map(ring => {
+      const ids = ring.atoms
+        ? new Set(ring.atoms.filter(id => M.atom(id)))
+        : new Set(M.S.atoms
+          .filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10)
+          .map(atom => atom.id));
+      return { ring, ids };
+    }).filter(item => item.ids.size >= 3);
+    const included = new Set(rings.filter(item => item.ids.has(atomId)));
+    if (!included.size) return null;
+    const ids = new Set();
+    for (const item of included) item.ids.forEach(id => ids.add(id));
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const item of rings) {
+        if (included.has(item) || !Array.from(item.ids).some(id => ids.has(id))) continue;
+        included.add(item);
+        item.ids.forEach(id => ids.add(id));
+        changed = true;
+      }
+    }
+    return ids;
+  }
+  function componentWithoutBond(start, bond) {
+    const seen = new Set([start]), queue = [start];
+    while (queue.length) {
+      const current = queue.pop();
+      for (const neighbor of M.neighbors(current)) {
+        if ((current === bond.a && neighbor === bond.b) || (current === bond.b && neighbor === bond.a)) continue;
+        if (!seen.has(neighbor)) { seen.add(neighbor); queue.push(neighbor); }
+      }
+    }
+    return seen;
+  }
+  function branchBySide(bond) {
+    const sideA = componentWithoutBond(bond.a, bond);
+    if (sideA.has(bond.b)) return null;
+    const sideB = componentWithoutBond(bond.b, bond);
+    return sideA.size <= sideB.size ? sideA : sideB;
+  }
+  function rotatePoint(point, angle, center) {
+    const x = point.x - center.x, y = point.y - center.y;
+    return {
+      x: Math.round((center.x + Math.cos(angle) * x - Math.sin(angle) * y) * 10) / 10,
+      y: Math.round((center.y + Math.sin(angle) * x + Math.cos(angle) * y) * 10) / 10
+    };
+  }
+  function rotateAtomGroup(atoms, angle, pivot, ids) {
+    if (!atoms.length) return;
+    const center = pivot || {
       x: atoms.reduce((sum, atom) => sum + atom.x, 0) / atoms.length,
       y: atoms.reduce((sum, atom) => sum + atom.y, 0) / atoms.length
     };
-    const cos = Math.cos(angle), sin = Math.sin(angle);
-    const rotate = p => {
-      const x = p.x - center.x, y = p.y - center.y;
-      return { x: center.x + cos * x - sin * y, y: center.y + sin * x + cos * y };
-    };
-    const rings = M.S.rings.filter(ring =>
-      atoms.filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10).length >= 3
-    );
-    for (const atom of atoms) Object.assign(atom, rotate(atom));
+    const atomIds = ids || new Set(atoms.map(atom => atom.id));
+    const rings = M.S.rings.filter(ring => ring.atoms
+      ? ring.atoms.every(id => atomIds.has(id))
+      : atoms.filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10).length >= 3);
+    for (const atom of atoms) Object.assign(atom, rotatePoint(atom, angle, center));
     for (const ring of rings) {
-      const centerPoint = rotate({ x: ring.cx, y: ring.cy });
+      const centerPoint = rotatePoint(ring, angle, center);
       ring.cx = centerPoint.x;
       ring.cy = centerPoint.y;
     }
   }
   function rotateAllComponents(angle) {
-    const remaining = new Set(M.S.atoms.map(atom => atom.id));
-    const groups = [];
-    while (remaining.size) {
-      const root = remaining.values().next().value;
-      const ids = Array.from(M.component(root)).filter(id => remaining.has(id));
-      ids.forEach(id => remaining.delete(id));
-      const atoms = ids.map(id => M.atom(id)).filter(Boolean);
-      if (atoms.length > 1) groups.push(atoms);
-    }
-    if (!groups.length) return;
-    M.transact(() => groups.forEach(atoms => rotateAtomGroup(atoms, angle)), 'grid-orientation');
+    const atoms = M.S.atoms;
+    if (!atoms.length && !M.S.rings.length && !M.S.texts.length) return;
+    M.transact(() => {
+      for (const atom of atoms) Object.assign(atom, rotatePoint(atom, angle, { x: 0, y: 0 }));
+      for (const ring of M.S.rings) {
+        const center = rotatePoint(ring, angle, { x: 0, y: 0 });
+        ring.cx = center.x; ring.cy = center.y;
+      }
+      for (const annotation of M.S.texts) Object.assign(annotation, rotatePoint(annotation, angle, { x: 0, y: 0 }));
+    }, 'grid-orientation');
     redraw();
   }
   function toggleGrid() {

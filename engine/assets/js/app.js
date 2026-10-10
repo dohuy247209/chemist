@@ -297,7 +297,7 @@ window.ChemApp = (() => {
       <tr><td>V / H / A / E / Z</td><td>Select · Pan · Atom · Erase · Carbon chain</td></tr>
       <tr><td>1 / 2 / 3</td><td>Single / double / triple bond</td></tr>
       <tr><td>4 / 5</td><td>Solid wedge / hashed wedge</td></tr>
-      <tr><td>R / Shift+R</td><td>Rotate selection ±30°; rotate a template by one grid step before placing</td></tr>
+      <tr><td>R / Shift+R</td><td>Rotate the selected atom's branch or ring around it by ±15°; rotate a template by one grid step before placing</td></tr>
       <tr><td>Shift + drag</td><td>Draw freely without angle snapping</td></tr>
       <tr><td>Middle mouse / Space</td><td>Pan canvas</td></tr>
       <tr><td>Ctrl+Z / Ctrl+Y</td><td>Undo / Redo</td></tr>
@@ -311,7 +311,7 @@ window.ChemApp = (() => {
       <tr><td>V / H / A / E / Z</td><td>Chọn · Kéo khung · Nguyên tử · Tẩy · Mạch zigzag</td></tr>
       <tr><td>1 / 2 / 3</td><td>Liên kết đơn / đôi / ba</td></tr>
       <tr><td>4 / 5</td><td>Nét đậm (wedge) / Nét đứt (hash)</td></tr>
-      <tr><td>R / Shift+R</td><td>Xoay cấu trúc đang chọn ±30°; xoay mẫu trước khi đặt theo bước lưới</td></tr>
+      <tr><td>R / Shift+R</td><td>Xoay nhánh hoặc vòng của nguyên tử đang chọn quanh nó ±15°; xoay mẫu trước khi đặt theo bước lưới</td></tr>
       <tr><td>Shift + kéo</td><td>Vẽ tự do, không bắt góc theo lưới</td></tr>
       <tr><td>Chuột giữa / Space</td><td>Kéo khung nhìn</td></tr>
       <tr><td>Ctrl+Z / Ctrl+Y</td><td>Hoàn tác / Làm lại</td></tr>
