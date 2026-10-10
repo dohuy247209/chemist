@@ -6,6 +6,52 @@ window.ChemApp = (() => {
   const text = (vi, en) => I ? I.text(vi, en) : vi;
   const SETTINGS_KEY = 'chem-editor-settings';
   const LABEL_COLOR_KEYS = ['N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'OH', 'NH2', 'SH', 'COOH', 'CHO', 'COOCH3', 'NO2', 'CN', 'OCH3'];
+  const COLOR_PRESET_SOURCES = [
+    ['ink', 'Màu chữ (C)', 'Text color (C)'], ['white', 'Trắng', 'White'],
+    ['O', 'Đỏ (O)', 'Red (O)'], ['P', 'Cam (P)', 'Orange (P)'],
+    ['S', 'Vàng (S)', 'Yellow (S)'], ['Cl', 'Xanh lá (Cl)', 'Green (Cl)'],
+    ['N', 'Xanh dương (N)', 'Blue (N)'], ['Br', 'Tím (Br)', 'Purple (Br)']
+  ];
+  function lightenColor(color) {
+    const channels = color.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
+    return '#' + channels.map(channel => Math.round(channel + (255 - channel) * 0.08)
+      .toString(16).padStart(2, '0')).join('');
+  }
+  function colorPresets() {
+    return COLOR_PRESET_SOURCES.map(([source, vi, en]) => [
+      source === 'white' ? '#ffffff' : lightenColor(source === 'ink' ? Th.palette().ink : Th.elColor(source)),
+      vi,
+      en
+    ]);
+  }
+  function colorOptionsMarkup(current, defaultLabel) {
+    const presets = colorPresets();
+    const selectedPreset = presets.find(([color]) => color === current);
+    return `<option value="default" ${current === null ? 'selected' : ''}>${defaultLabel}</option>
+      ${presets.map(([color, vi, en]) => `<option value="${color}" ${selectedPreset && selectedPreset[0] === color ? 'selected' : ''}>${text(vi, en)}</option>`).join('')}
+      <option value="custom" ${current !== null && !selectedPreset ? 'selected' : ''}>${text('Màu tùy chỉnh', 'Custom color')}</option>`;
+  }
+  function bindColorControls(selectId, pickerId, current, defaultColor, update) {
+    const select = document.getElementById(selectId), picker = document.getElementById(pickerId);
+    let selectedColor = current || defaultColor;
+    picker.value = selectedColor;
+    picker.hidden = select.value !== 'custom';
+    select.onchange = () => {
+      picker.hidden = select.value !== 'custom';
+      if (select.value === 'custom') {
+        picker.value = selectedColor;
+        return;
+      }
+      selectedColor = select.value === 'default' ? defaultColor : select.value;
+      update(select.value === 'default' ? null : select.value);
+    };
+    picker.onchange = () => {
+      if (/^#[0-9a-f]{6}$/i.test(picker.value)) {
+        selectedColor = picker.value;
+        update(picker.value);
+      }
+    };
+  }
   let storedSettings = {};
   try {
     const saved = localStorage.getItem(SETTINGS_KEY);
@@ -273,7 +319,7 @@ window.ChemApp = (() => {
         const input = document.querySelector(`[data-label-color="${label}"]`);
         if (input && !Th.customLabelColors()[label]) input.value = Th.elColor(label);
       });
-      Ed.redraw(); saveSettings();
+      Ed.redraw(); updateProps(); saveSettings();
       toast(Th.isDark() ? text('Đã bật giao diện tối 🌙', 'Dark theme enabled 🌙') : text('Đã bật giao diện sáng ☀', 'Light theme enabled ☀'));
     },
     'reset-label-colors': () => {
@@ -355,12 +401,15 @@ window.ChemApp = (() => {
         <input id="pEl" type="text" list="atomLabels" maxlength="16" autocomplete="off" aria-label="${text('Ký hiệu nguyên tử hoặc nhóm chức', 'Element or functional group')}">
         <label>${text('LaTeX cho nhãn', 'LaTeX label')}</label><input id="pAtomLatex" type="checkbox">
         <label>${text('Màu nhãn', 'Label color')}</label>
-        <input id="pColor" type="color" aria-label="${text('Màu nguyên tử hoặc nhóm chức', 'Element or group color')}">
+        <select id="pColor" aria-label="${text('Màu nguyên tử hoặc nhóm chức', 'Element or group color')}">
+          ${colorOptionsMarkup(a.color || null, text('Mặc định', 'Default'))}
+        </select>
+        <span></span><input id="pColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
         <label>${text('Toạ độ X', 'X coordinate')}</label><input id="pX" type="number" step="1" value="${a.x}">
         <label>${text('Toạ độ Y', 'Y coordinate')}</label><input id="pY" type="number" step="1" value="${a.y}">
         <label>${text('Bậc', 'Degree')}</label><span class="muted">${M.degree(a.id)} ${text('liên kết', 'bonds')}</span>
       </div>
-      <div class="btnrow"><button class="btn" id="pResetColor" type="button">${text('Dùng lại màu mặc định', 'Reset to default color')}</button></div>`;
+      `;
       const elInput = document.getElementById('pEl');
       elInput.value = a.el;
       elInput.onchange = e => {
@@ -376,17 +425,13 @@ window.ChemApp = (() => {
       latexHelp.className = 'muted';
       latexHelp.textContent = text('Dùng CH_3, NH_{2}, N^+ hoặc ký hiệu có dấu $...$.', 'Use CH_3, NH_{2}, N^+, or delimit expressions with $...$.');
       body.appendChild(latexHelp);
-      const colorInput = document.getElementById('pColor');
-      colorInput.value = a.color || M.elColor(a.el);
-      colorInput.onchange = e => {
-        const value = e.target.value;
-        if (!/^#[0-9a-f]{6}$/i.test(value)) { toast(text('Màu không hợp lệ.', 'Invalid color.')); e.target.value = a.color || M.elColor(a.el); return; }
-        if (value !== a.color) M.transact(() => { a.color = value; }, 'atom-color');
-      };
-      const resetColor = document.getElementById('pResetColor');
-      resetColor.onclick = () => {
-        if (a.color) M.transact(() => { delete a.color; }, 'atom-color');
-      };
+      bindColorControls('pColor', 'pColorCustom', a.color || null, M.elColor(a.el), value => {
+        if (value === a.color) return;
+        M.transact(() => {
+          if (value === null) delete a.color;
+          else a.color = value;
+        }, 'atom-color');
+      });
       document.getElementById('pX').onchange = e => M.transact(() => { a.x = +e.target.value; }, 'prop');
       document.getElementById('pY').onchange = e => M.transact(() => { a.y = +e.target.value; }, 'prop');
     } else if (sel.type === 'bond') {
@@ -407,26 +452,25 @@ window.ChemApp = (() => {
           <option value="hash" ${b.style === 'hash' ? 'selected' : ''}>${text('Nét đứt (╱)', 'Hashed wedge (╱)')}</option>
         </select>
         <label>${text('Màu liên kết', 'Bond color')}</label>
-        <input id="pBondColor" type="color" aria-label="${text('Màu liên kết', 'Bond color')}">
+        <select id="pBondColor" aria-label="${text('Màu liên kết', 'Bond color')}">
+          ${colorOptionsMarkup(b.color || null, text('Mặc định', 'Default'))}
+        </select>
+        <span></span><input id="pBondColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
         <label>${text('Từ → Đến', 'From → To')}</label><span class="muted">${A ? A.el : '?'} → ${B ? B.el : '?'}</span>
       </div>
       <div class="btnrow">
-        <button class="btn" id="pResetBondColor" type="button">${text('Dùng màu mặc định', 'Reset to default color')}</button>
         ${b.style === 'solid' && (b.order === 2 || b.dbl) ? `<button class="btn" id="pSwapDoubleSide" type="button">${text('Đổi phía nét phụ', 'Swap parallel line side')}</button>` : ''}
         <button class="btn" id="pDelBond">${text('Xóa liên kết', 'Delete bond')}</button>
       </div>`;
       document.getElementById('pOrder').onchange = e => M.transact(() => { b.order = +e.target.value; b.dbl = false; }, 'prop');
       document.getElementById('pStyle').onchange = e => M.transact(() => { b.style = e.target.value; }, 'prop');
-      const bondColorInput = document.getElementById('pBondColor');
-      bondColorInput.value = b.color || Th.palette().ink;
-      bondColorInput.onchange = e => {
-        const value = e.target.value;
-        if (!/^#[0-9a-f]{6}$/i.test(value)) { toast(text('Màu không hợp lệ.', 'Invalid color.')); e.target.value = b.color || Th.palette().ink; return; }
-        if (value !== b.color) M.transact(() => { b.color = value; }, 'bond-color');
-      };
-      document.getElementById('pResetBondColor').onclick = () => {
-        if (b.color) M.transact(() => { delete b.color; }, 'bond-color');
-      };
+      bindColorControls('pBondColor', 'pBondColorCustom', b.color || null, Th.palette().ink, value => {
+        if (value === b.color) return;
+        M.transact(() => {
+          if (value === null) delete b.color;
+          else b.color = value;
+        }, 'bond-color');
+      });
       const swapDoubleSide = document.getElementById('pSwapDoubleSide');
       if (swapDoubleSide) swapDoubleSide.onclick = () => M.transact(() => { b.dblSide = b.dblSide === 1 ? -1 : 1; }, 'bond-side');
       document.getElementById('pDelBond').onclick = () => actions.delete();
