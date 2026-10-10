@@ -2,9 +2,10 @@
 /* editor.js — Tương tác canvas: công cụ, chọn/kéo, vẽ liên kết, đặt mẫu, phím tắt. */
 window.ChemEditor = (() => {
   const M = window.ChemModel;
+  const text = (vi, en) => window.ChemI18n ? window.ChemI18n.text(vi, en) : vi;
   const st = {
     tool: 'select', el: 'C', order: 1, bstyle: 'solid',
-    tpl: null, sel: null, snap: true, grid: true, gridType: 'square', gridOrientation: 'horizontal', space: false,
+    tpl: null, tplRotation: 0, sel: null, snap: true, grid: true, gridType: 'square', gridOrientation: 'horizontal', space: false,
     view: { x: 0, y: 0, k: 1 }, drag: null, hover: null, changed: false
   };
   let stage, viewport, gridRect, overlay, wrap;
@@ -40,10 +41,44 @@ window.ChemEditor = (() => {
     if (!nearest) return p;
     return vertical ? { x: -nearest.y, y: nearest.x } : nearest;
   }
-  function orientTemplatePoint(x, y) {
-    return st.gridType === 'triangle' && st.gridOrientation === 'vertical'
-      ? { x: -y, y: x }
-      : { x, y };
+  function gridAngleBase() {
+    if (st.gridType !== 'triangle') return 0;
+    return st.gridOrientation === 'vertical' ? Math.PI / 6 : 0;
+  }
+  function nearestGridAngle(angle) {
+    const step = st.gridType === 'triangle' ? Math.PI / 3 : Math.PI / 6;
+    const base = gridAngleBase();
+    return base + Math.round((angle - base) / step) * step;
+  }
+  function openAttachmentAngle(atom) {
+    const step = st.gridType === 'triangle' ? Math.PI / 3 : Math.PI / 6;
+    const base = gridAngleBase();
+    const neighbors = M.neighbors(atom.id).map(id => M.atom(id)).filter(Boolean);
+    let bestAngle = base, bestScore = -Infinity;
+    for (let i = 0; i < (st.gridType === 'triangle' ? 6 : 12); i++) {
+      const angle = base + i * step;
+      const score = neighbors.reduce((sum, neighbor) => {
+        const dx = neighbor.x - atom.x, dy = neighbor.y - atom.y;
+        const length = Math.hypot(dx, dy) || 1;
+        return sum - (dx * Math.cos(angle) + dy * Math.sin(angle)) / length;
+      }, 0);
+      if (score > bestScore) { bestAngle = angle; bestScore = score; }
+    }
+    return bestAngle;
+  }
+  function orientTemplatePoint(x, y, angle) {
+    const rotation = angle == null
+      ? (st.gridType === 'triangle' && st.gridOrientation === 'vertical' ? Math.PI / 2 : 0) + st.tplRotation
+      : angle;
+    const cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: cos * x - sin * y, y: sin * x + cos * y };
+  }
+  function templateOriginAt(position, frag, angle) {
+    if (!frag.snapVertices || !st.snap || st.gridType !== 'triangle') return position;
+    const first = frag.atoms[0];
+    const offset = orientTemplatePoint(first.dx, first.dy, angle);
+    const snapped = snapP({ x: position.x + offset.x, y: position.y + offset.y });
+    return { x: snapped.x - offset.x, y: snapped.y - offset.y };
   }
   function updateGrid() {
     if (!gridRect) return;
@@ -65,8 +100,8 @@ window.ChemEditor = (() => {
     if (button) {
       const triangle = st.gridType === 'triangle';
       button.textContent = triangle ? '△' : '▦';
-      button.title = triangle ? 'Chuyển sang lưới vuông' : 'Chuyển sang lưới tam giác';
-      button.setAttribute('aria-label', 'Loại lưới: ' + (triangle ? 'tam giác' : 'vuông'));
+      button.title = text(triangle ? 'Chuyển sang lưới vuông' : 'Chuyển sang lưới tam giác', triangle ? 'Switch to square grid' : 'Switch to triangular grid');
+      button.setAttribute('aria-label', text('Loại lưới: ' + (triangle ? 'tam giác' : 'vuông'), 'Grid type: ' + (triangle ? 'triangular' : 'square')));
       button.setAttribute('aria-pressed', triangle ? 'true' : 'false');
       button.classList.toggle('active', triangle);
     }
@@ -75,8 +110,8 @@ window.ChemEditor = (() => {
       const vertical = st.gridOrientation === 'vertical';
       orientationButton.hidden = st.gridType !== 'triangle';
       orientationButton.textContent = vertical ? '↔' : '↕';
-      orientationButton.title = `Chuyển trục sang ${vertical ? 'nằm ngang' : 'nằm dọc'} và xoay cấu trúc 90°`;
-      orientationButton.setAttribute('aria-label', `Trục lưới tam giác nằm ${vertical ? 'dọc' : 'ngang'}`);
+      orientationButton.title = text(`Chuyển trục sang ${vertical ? 'nằm ngang' : 'nằm dọc'} và xoay cấu trúc 90°`, `Switch triangle-grid axis to ${vertical ? 'horizontal' : 'vertical'} and rotate structures 90°`);
+      orientationButton.setAttribute('aria-label', text(`Trục lưới tam giác nằm ${vertical ? 'dọc' : 'ngang'}`, `Triangle-grid axis is ${vertical ? 'vertical' : 'horizontal'}`));
       orientationButton.setAttribute('aria-pressed', vertical ? 'true' : 'false');
       orientationButton.classList.toggle('active', vertical);
     }
@@ -84,7 +119,9 @@ window.ChemEditor = (() => {
   }
   function updateGridStatus() {
     const s = document.getElementById('stSnap');
-    if (s) s.textContent = `Lưới ${st.gridType === 'triangle' ? `tam giác (${st.gridOrientation === 'vertical' ? 'dọc' : 'ngang'})` : 'vuông'}: ${st.grid ? 'Bật' : 'Tắt'} · Bắt điểm: ${st.snap ? 'Bật' : 'Tắt'}`;
+    if (s) s.textContent = window.ChemI18n && window.ChemI18n.language === 'en'
+      ? `${st.gridType === 'triangle' ? `Triangle grid (${st.gridOrientation})` : 'Square grid'}: ${st.grid ? 'On' : 'Off'} · Snap: ${st.snap ? 'On' : 'Off'}`
+      : `Lưới ${st.gridType === 'triangle' ? `tam giác (${st.gridOrientation === 'vertical' ? 'dọc' : 'ngang'})` : 'vuông'}: ${st.grid ? 'Bật' : 'Tắt'} · Bắt điểm: ${st.snap ? 'Bật' : 'Tắt'}`;
   }
   function applyView() {
     const v = st.view;
@@ -98,11 +135,16 @@ window.ChemEditor = (() => {
     window.ChemRender.renderAll(st.sel);
     drawOverlay();
     const tb = document.getElementById('stTool');
-    if (tb) tb.textContent = 'Công cụ: ' + toolName();
+    if (tb) tb.textContent = text('Công cụ: ', 'Tool: ') + toolName();
     if (st.onAfter) { try { st.onAfter(); } catch (e) { console.error(e); } }
   }
   function toolName() {
-    return { select: 'Chọn', pan: 'Kéo khung', atom: 'Đặt nguyên tử (' + st.el + ')', bond: `Liên kết ${st.order > 1 ? ['','','đôi','ba'][st.order] : 'đơn'}${st.bstyle !== 'solid' ? ' · ' + st.bstyle : ''}`, erase: 'Tẩy', chain: 'Mạch zigzag' }[st.tool] || st.tool;
+    const english = window.ChemI18n && window.ChemI18n.language === 'en';
+    const order = st.order === 3 ? (english ? 'triple' : 'ba') : st.order === 2 ? (english ? 'double' : 'đôi') : (english ? 'single' : 'đơn');
+    const styles = english ? { wedge: 'wedge', hash: 'hashed' } : { wedge: 'nét đậm', hash: 'nét đứt' };
+    return (english
+      ? { select: 'Select', pan: 'Pan', atom: 'Place atom (' + st.el + ')', bond: `${order} bond${st.bstyle !== 'solid' ? ' · ' + (styles[st.bstyle] || st.bstyle) : ''}`, erase: 'Erase', chain: 'Carbon chain', text: 'Insert text' }
+      : { select: 'Chọn', pan: 'Kéo khung', atom: 'Đặt nguyên tử (' + st.el + ')', bond: `Liên kết ${order}${st.bstyle !== 'solid' ? ' · ' + (styles[st.bstyle] || st.bstyle) : ''}`, erase: 'Tẩy', chain: 'Mạch zigzag', text: 'Chèn văn bản' })[st.tool] || st.tool;
   }
   function clearOverlay() { while (overlay.firstChild) overlay.removeChild(overlay.firstChild); }
   function ov(tag, attrs, parent) {
@@ -114,10 +156,10 @@ window.ChemEditor = (() => {
   function drawOverlay() {
     clearOverlay();
     if (st.sel && st.sel.type === 'multi') for (const id of st.sel.ids) {
-      const a = M.atom(id); if (a) ov('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring' });
+      const a = M.atom(id); if (a) ov('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: window.ChemTheme.palette().blue, 'fill-opacity': 0.12, stroke: window.ChemTheme.palette().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' });
     }
     if (st.sel && st.sel.type === 'atoms') for (const id of st.sel.ids) {
-      const a = M.atom(id); if (a) ov('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring' });
+      const a = M.atom(id); if (a) ov('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: window.ChemTheme.palette().blue, 'fill-opacity': 0.12, stroke: window.ChemTheme.palette().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' });
     }
     if (st.drag) drawDragGhost();
     else if (st.tool === 'erase' && st.hover) drawHover();
@@ -134,9 +176,9 @@ window.ChemEditor = (() => {
   }
   function drawTplGhost() {
     const frag = window.ChemTemplates.byName(st.tpl); if (!frag || !st.hoverP) return;
-    const p = snapP(st.hoverP);
-    const rotation = st.gridType === 'triangle' && st.gridOrientation === 'vertical' ? ' rotate(90)' : '';
-    const g = ov('g', { class: 'ghost', transform: `translate(${p.x},${p.y})${rotation}` });
+    const rotation = (st.gridType === 'triangle' && st.gridOrientation === 'vertical' ? 90 : 0) + st.tplRotation * 180 / Math.PI;
+    const p = templateOriginAt(snapP(st.hoverP), frag, rotation * Math.PI / 180);
+    const g = ov('g', { class: 'ghost', transform: `translate(${p.x},${p.y}) rotate(${rotation})` });
     const thumb = window.ChemTemplates.thumb(frag);
     while (thumb.firstChild) g.appendChild(thumb.firstChild);
   }
@@ -159,19 +201,30 @@ window.ChemEditor = (() => {
   function chainPoints(start, end) {
     const n = Math.max(2, Math.min(12, parseInt(document.getElementById('chainLen').value, 10) || 4));
     const dx = end.x - start.x, dy = end.y - start.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const ang = Math.atan2(dy, dx);
-    const bl = M.S.atoms.length >= 0 ? (parseFloat(document.getElementById('optBondLen').value) || 40) : 40;
-    const natural = (n - 1) * bl;
-    const scale = Math.max(.5, Math.min(2, len / natural));
-    const pts = [];
-    for (let i = 0; i < n; i++) {
-      let x = i * bl * scale, y = 0;
-      if (i > 0) y = (i % 2 ? -1 : 1) * bl * scale * 0.5;
-      const ca = Math.cos(ang), sa = Math.sin(ang);
-      pts.push({ x: start.x + x * ca - y * sa, y: start.y + x * sa + y * ca });
+    const length = parseFloat(document.getElementById('optBondLen').value) || 40;
+    const wantedLength = Math.hypot(dx, dy) || 1;
+    const wantedX = dx / wantedLength, wantedY = dy / wantedLength;
+    const step = st.gridType === 'triangle' ? Math.PI / 3 : Math.PI / 6;
+    const base = gridAngleBase();
+    let best = null;
+    for (let direction = -1; direction <= 1; direction += 2) {
+      for (let orientation = 0; orientation < 6; orientation++) {
+        const firstAngle = base + orientation * step;
+        const secondAngle = firstAngle + direction * step;
+        const points = [{ x: start.x, y: start.y }];
+        for (let i = 0; i < n - 1; i++) {
+          const angle = i % 2 === 0 ? firstAngle : secondAngle;
+          const last = points[points.length - 1];
+          points.push({ x: last.x + Math.cos(angle) * length, y: last.y + Math.sin(angle) * length });
+        }
+        const endPoint = points[points.length - 1];
+        const endX = endPoint.x - start.x, endY = endPoint.y - start.y;
+        const endLength = Math.hypot(endX, endY);
+        const score = endLength ? (endX * wantedX + endY * wantedY) / endLength : -Infinity;
+        if (!best || score > best.score) best = { points, score };
+      }
     }
-    return pts;
+    return best ? best.points : [start];
   }
   function ringEdges(frag) {
     const rings = frag.rings || (frag.ring ? [frag.ring] : []);
@@ -264,21 +317,26 @@ window.ChemEditor = (() => {
     const bl = parseFloat(document.getElementById('optBondLen').value) || 40;
     const isRing = !!(frag.ring || frag.rings);
     const fusion = fusionTransform(frag, p);
-    const position = fusion ? p : snapP(p);
+    let templateAngle = (st.gridType === 'triangle' && st.gridOrientation === 'vertical' ? Math.PI / 2 : 0) + st.tplRotation;
+    const position = fusion ? p : templateOriginAt(snapP(p), frag, templateAngle);
     const near = (!isRing && frag.anchor != null) ? M.nearAtom(position, 20) : (isRing && frag.anchor != null ? M.nearAtom(position, 20) : null);
     let ox = position.x, oy = position.y;
     if (fusion) {
       ox = fusion.ox; oy = fusion.oy;
     } else if (near && isRing) {
       const ai = frag.anchor != null ? frag.anchor : 0;
-      const anchor = orientTemplatePoint(frag.atoms[ai].dx, frag.atoms[ai].dy);
+      const anchor = orientTemplatePoint(frag.atoms[ai].dx, frag.atoms[ai].dy, templateAngle);
       ox = near.x - anchor.x; oy = near.y - anchor.y;
     } else if (near && !isRing) {
       const A = frag.anchor != null ? frag.atoms[frag.anchor] : frag.atoms[0];
-      const anchor = orientTemplatePoint(A.dx, A.dy);
       let dx = p.x - near.x, dy = p.y - near.y, L = Math.hypot(dx, dy);
-      if (L < 6) { dx = 1; dy = 0; L = 1; }
-      ox = near.x + dx / L * bl - anchor.x; oy = near.y + dy / L * bl - anchor.y;
+      const attachmentAngle = L < 6
+        ? openAttachmentAngle(near)
+        : nearestGridAngle(Math.atan2(dy, dx));
+      templateAngle = attachmentAngle - (frag.anchorOffset || 0) + st.tplRotation;
+      const anchor = orientTemplatePoint(A.dx, A.dy, templateAngle);
+      ox = near.x + Math.cos(attachmentAngle) * bl - anchor.x;
+      oy = near.y + Math.sin(attachmentAngle) * bl - anchor.y;
     } else if (isRing && !near) {
       // Đặt vòng lên atom sẵn có → hàn (fused): đưa một đỉnh của vòng khớp vào atom đó.
       const t0 = M.nearAtom(position, 16);
@@ -292,30 +350,30 @@ window.ChemEditor = (() => {
         }
         let bv = frag.atoms[0], bd = -1;
         for (const v of frag.atoms) {
-          const offset = orientTemplatePoint(v.dx, v.dy);
+          const offset = orientTemplatePoint(v.dx, v.dy, templateAngle);
           const mx = t0.x - offset.x, my = t0.y - offset.y;
           const dd = Math.hypot(mx - lx, my - ly);
           if (dd > bd) { bd = dd; bv = v; }
         }
-        const offset = orientTemplatePoint(bv.dx, bv.dy);
+        const offset = orientTemplatePoint(bv.dx, bv.dy, templateAngle);
         ox = t0.x - offset.x; oy = t0.y - offset.y;
       } else {
         // Nhấn gần rìa (đỉnh vòng nằm sát atom) cũng hàn được.
         for (let i = 0; i < frag.atoms.length; i++) {
           const v = frag.atoms[i];
-          const offset = orientTemplatePoint(v.dx, v.dy);
+          const offset = orientTemplatePoint(v.dx, v.dy, templateAngle);
           const t = M.nearAtom({ x: position.x + offset.x, y: position.y + offset.y }, 10);
           if (t) { ox = t.x - offset.x; oy = t.y - offset.y; break; }
         }
       }
     } else if (frag.anchor != null) {
-      const anchor = orientTemplatePoint(frag.atoms[frag.anchor].dx, frag.atoms[frag.anchor].dy);
+      const anchor = orientTemplatePoint(frag.atoms[frag.anchor].dx, frag.atoms[frag.anchor].dy, templateAngle);
       ox = position.x - anchor.x; oy = position.y - anchor.y;
     }
 
     M.transact(() => {
       const ids = frag.atoms.map(a => {
-        const offset = orientTemplatePoint(a.dx, a.dy);
+        const offset = orientTemplatePoint(a.dx, a.dy, templateAngle);
         const x = fusion ? ox + fusion.scale * (fusion.cos * a.dx - fusion.sin * a.dy) : offset.x + ox;
         const y = fusion ? oy + fusion.scale * (fusion.sin * a.dx + fusion.cos * a.dy) : offset.y + oy;
         const ex = M.nearAtom({ x, y }, 10);
@@ -328,7 +386,7 @@ window.ChemEditor = (() => {
       }
       const rings = frag.rings || (frag.ring ? [frag.ring] : []);
       for (const rg of rings) {
-        const center = orientTemplatePoint(rg.cx, rg.cy);
+        const center = orientTemplatePoint(rg.cx, rg.cy, templateAngle);
         const cx = fusion ? ox + fusion.scale * (fusion.cos * rg.cx - fusion.sin * rg.cy) : ox + center.x;
         const cy = fusion ? oy + fusion.scale * (fusion.sin * rg.cx + fusion.cos * rg.cy) : oy + center.y;
         const g = M.addRing(cx, cy, rg.r * (fusion ? fusion.scale : 1), rg.aromatic);
@@ -337,9 +395,10 @@ window.ChemEditor = (() => {
       if (near && !isRing) M.addBond(near.id, ids[frag.anchor != null ? frag.anchor : 0], frag.order || 1, 'solid');
     }, 'place');
     st.sel = null;
+    const templateName = window.ChemI18n ? window.ChemI18n.name(frag.name) : frag.name;
     setHint(fusion
-      ? `Đã ghép "${frag.name}" với vòng hiện có qua một cạnh chung.`
-      : 'Đã đặt mẫu "' + frag.name + '" — nhấn tiếp để đặt nữa hoặc Esc để thoát.');
+      ? text(`Đã ghép "${templateName}" với vòng hiện có qua một cạnh chung.`, `Fused "${templateName}" to the existing ring along a shared edge.`)
+      : text('Đã đặt mẫu "' + templateName + '" — nhấn tiếp để đặt nữa hoặc Esc để thoát.', 'Placed "' + templateName + '" — click again to place another or press Esc to exit.'));
   }
   // ---------- Xử lý chuột ----------
   function onDown(e) {
@@ -353,11 +412,27 @@ window.ChemEditor = (() => {
     }
     if (st.tpl) { placeTemplate(window.ChemTemplates.byName(st.tpl), p); st.tpl = null; syncTplButtons(); redraw(); return; }
 
+    const textElement = e.target.closest && e.target.closest('[data-tid]');
+    const hitText = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
     const hitA = M.nearAtom(p, 16), hitB = hitA ? null : M.nearBond(p, 9);
     try { stage.setPointerCapture(e.pointerId); } catch (err) {}
 
+    if (st.tool === 'text') {
+      const value = window.prompt(text('Nhập nội dung chú thích:', 'Enter annotation text:'), '');
+      if (value != null && value.trim()) {
+        let annotation;
+        M.transact(() => { annotation = M.addText(p.x, p.y, value.trim(), parseFloat(document.getElementById('optFont').value) || 20); }, 'text');
+        st.sel = { type: 'text', id: annotation.id };
+        redraw();
+      }
+      return;
+    }
     if (st.tool === 'select') {
-      if (hitA) {
+      if (hitText) {
+        st.sel = { type: 'text', id: hitText.id };
+        M.beginTx(); st.changed = false;
+        st.drag = { mode: 'move-text', id: hitText.id, last: p, moved: false };
+      } else if (hitA) {
         st.sel = { type: 'atom', id: hitA.id };
         M.beginTx(); st.changed = false;
         st.drag = { mode: 'move', from: hitA.id, ids: Array.from(M.component(hitA.id)), last: p, moved: false };
@@ -397,6 +472,17 @@ window.ChemEditor = (() => {
     if (d.mode === 'box') { d.x1 = p.x; d.y1 = p.y; drawOverlay(); return; }
     if (d.mode === 'chain') { d.cur = snapP(p); drawOverlay(); return; }
     if (d.mode === 'erase') { eraseAt(p); return; }
+    if (d.mode === 'move-text') {
+      const annotation = M.textItem(d.id);
+      if (annotation) {
+        const dx = p.x - d.last.x, dy = p.y - d.last.y;
+        if (Math.abs(dx) + Math.abs(dy) > 0.5) {
+          annotation.x += dx; annotation.y += dy;
+          d.last = p; d.moved = true; M.markTx(); redraw();
+        }
+      }
+      return;
+    }
     if (d.mode === 'move') {
       const dx = p.x - d.last.x, dy = p.y - d.last.y;
       if (Math.abs(dx) + Math.abs(dy) > 0.5) {
@@ -414,13 +500,10 @@ window.ChemEditor = (() => {
       if (tgtA && tgtA.id !== d.from) { d.cur = { x: tgtA.x, y: tgtA.y }; d.onAtom = true; }
       else {
         d.onAtom = false;
-        if (!e.shiftKey) { // bắt góc 30° để dễ vẽ vòng; Shift = tự do
+        if (!e.shiftKey) {
           const dx = target.x - A.x, dy = target.y - A.y, L = Math.hypot(dx, dy);
           if (L > 4) {
-            const step = Math.PI / 6;
-            const base = st.gridType === 'triangle' && st.gridOrientation === 'vertical' ? Math.PI / 2 : 0;
-            const rawAngle = Math.atan2(dy, dx);
-            const ang = base + Math.round((rawAngle - base) / step) * step;
+            const ang = nearestGridAngle(Math.atan2(dy, dx));
             const r = Math.max(4, Math.round(L / bl) * bl);
             target = { x: Math.round(A.x + Math.cos(ang) * r), y: Math.round(A.y + Math.sin(ang) * r) };
           }
@@ -451,6 +534,7 @@ window.ChemEditor = (() => {
       redraw(); return;
     }
     if (d.mode === 'erase') { M.endTx(); M.emit('change'); redraw(); return; }
+    if (d.mode === 'move-text') { M.endTx(); if (d.moved) M.emit('change'); redraw(); return; }
     if (d.mode === 'move') { M.endTx(); if (d.moved) M.emit('change'); redraw(); return; }
     if (d.mode === 'bond') {
       const A = M.atom(d.from);
@@ -531,6 +615,16 @@ window.ChemEditor = (() => {
   }
   function onKeyUp(e) { if (e.key === ' ') { st.space = false; stage.classList.remove('panning'); } }
   function onDblClick(e) {
+    const textElement = e.target.closest && e.target.closest('[data-tid]');
+    const annotation = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
+    if (annotation) {
+      const value = window.prompt(text('Sửa chú thích:', 'Edit annotation:'), annotation.text);
+      if (value == null) return;
+      if (!value.trim()) { window.ChemApp.toast(text('Nội dung chú thích không được để trống.', 'Annotation text cannot be empty.')); return; }
+      M.transact(() => { annotation.text = value.trim(); }, 'text');
+      redraw();
+      return;
+    }
     const a = M.nearAtom(toWorld(e), 16); if (!a) return;
     const v = window.prompt('Ký hiệu nguyên tử hoặc nhóm chức (vd: C, Fe, NH2, OH):', a.el);
     if (v == null) return;
@@ -573,9 +667,13 @@ window.ChemEditor = (() => {
   }
   function setTemplate(name) {
     st.tpl = (st.tpl === name) ? null : name;
+    st.tplRotation = 0;
     if (st.tpl) { st.tool = 'select'; document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === 'select')); }
     syncTplButtons(); redraw();
-    if (st.tpl) setHint('Nhấn lên khung vẽ để đặt "' + st.tpl + '". Nhấn mẫu lần nữa hoặc Esc để hủy.');
+    if (st.tpl) {
+      const name = window.ChemI18n ? window.ChemI18n.name(st.tpl) : st.tpl;
+      setHint(text('Nhấn lên khung vẽ để đặt "' + name + '". Nhấn mẫu lần nữa hoặc Esc để hủy.', 'Click the canvas to place "' + name + '". Click the template again or press Esc to cancel.'));
+    }
   }
   function syncTplButtons() {
     document.querySelectorAll('.tpl').forEach(b => b.classList.toggle('active', b.dataset.frag === st.tpl));
@@ -591,11 +689,23 @@ window.ChemEditor = (() => {
     M.transact(() => {
       if (s.type === 'atom') M.removeAtom(s.id);
       else if (s.type === 'bond') M.removeBond(s.id);
+      else if (s.type === 'text') M.removeText(s.id);
       else if (s.ids) s.ids.forEach(id => M.removeAtom(id));
     }, 'delete');
     st.sel = null; redraw();
   }
   function rotateSelection(angle) {
+    if (st.tpl) {
+      const step = st.gridType === 'triangle' ? Math.PI / 3 : Math.PI / 6;
+      st.tplRotation += Math.sign(angle || 1) * step;
+      redraw();
+      const name = window.ChemI18n ? window.ChemI18n.name(st.tpl) : st.tpl;
+      setHint(text(
+        `Đã xoay mẫu "${name}" ${angle < 0 ? 'ngược chiều kim đồng hồ' : 'theo chiều kim đồng hồ'} ${Math.round(step * 180 / Math.PI)}°. Nhấn lên khung vẽ để đặt.`,
+        `Rotated "${name}" ${angle < 0 ? 'counterclockwise' : 'clockwise'} by ${Math.round(step * 180 / Math.PI)}°. Click the canvas to place it.`
+      ));
+      return true;
+    }
     if (!st.sel) return false;
     const selected = st.sel.type === 'atom' ? [st.sel.id]
       : st.sel.type === 'bond' ? [M.bond(st.sel.id)].filter(Boolean).flatMap(b => [b.a, b.b])
@@ -678,7 +788,7 @@ window.ChemEditor = (() => {
     const r = stage.getBoundingClientRect();
     st.view.x = r.width / 2; st.view.y = r.height / 2;
     applyView(); redraw();
-    setTimeout(() => setHint('Chào mừng! Nhấn mẫu ⬡ Benzen bên trái rồi nhấn vào khung vẽ.'), 400);
+    setTimeout(() => setHint(text('Chào mừng! Nhấn mẫu ⬡ Benzen bên trái rồi nhấn vào khung vẽ.', 'Welcome! Select the ⬡ Benzene template on the left, then click the canvas.')), 400);
     setTimeout(() => { const h = document.getElementById('hint'); if (h) h.classList.add('hide'); }, 7000);
   }
   return {

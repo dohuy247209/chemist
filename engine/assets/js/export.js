@@ -25,7 +25,7 @@ window.ChemExport = (() => {
     // Bỏ các phần hiển thị tạm thời: vùng chọn, nét hit vô hình, vòng chọn.
     src.querySelectorAll('.sel-ring, .hit, .handle, circle[fill="rgba(0,0,0,0)"]').forEach(n => n.remove());
     g.innerHTML = src.innerHTML
-      .replace(/ class="(bond|atom-dot|atom-label|arom-circle)"/g, '')
+      .replace(/ class="(bond|atom-dot|atom-label|arom-circle|canvas-text)"/g, '')
       .replace(/ data-[a-z]+="[^"]*"/g, '');
     svg.appendChild(g);
     let code = new XMLSerializer().serializeToString(svg);

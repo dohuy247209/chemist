@@ -25,7 +25,7 @@ window.ChemTemplates = (() => {
     const atoms = []; let x = 0, y = 0;
     for (let i = 0; i < n; i++) {
       atoms.push({ el: (labels && labels[i]) || 'C', dx: x, dy: y });
-      const a = (i % 2) ? -Math.PI / 3 : Math.PI / 3;
+      const a = (i % 2) ? 0 : Math.PI / 3;
       x += Math.cos(a) * R; y += Math.sin(a) * R;
     }
     const bonds = []; for (let i = 0; i < n - 1; i++) bonds.push([i, i + 1, 1]);
@@ -34,50 +34,63 @@ window.ChemTemplates = (() => {
   function funcFrag(name, atoms, bonds, extra) {
     return Object.assign({ name, group: 'fun', atoms, bonds, anchor: 0, anchorOffset: 0 }, extra || {});
   }
+  function phenolFrag() {
+    const frag = ringFrag('Fenol', 'aro', 6, true, Math.PI / 6, null, [0, 2, 4], {
+      anchor: 3,
+      anchorOffset: ang(3, 6, Math.PI / 6)
+    });
+    const vertex = frag.atoms[0];
+    frag.atoms.push({ el: 'OH', dx: vertex.dx * 2, dy: vertex.dy * 2 });
+    frag.bonds.push([0, 6]);
+    return frag;
+  }
 
   const FRAGS = [
-    ringFrag('Cyclopropan', 'sat', 3, false, 0),
+    { name: 'Cyclopropan', group: 'sat', snapVertices: true,
+      atoms: [{ el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 6 }, { el: 'C', dx: R / 2, dy: -R * Math.sqrt(3) / 6 }, { el: 'C', dx: 0, dy: R * Math.sqrt(3) / 3 }],
+      bonds: [[0, 1], [1, 2], [2, 0]],
+      ring: { cx: 0, cy: 0, r: R / Math.sqrt(3), aromatic: false, vertices: [0, 1, 2] } },
     ringFrag('Cyclobutan', 'sat', 4, false, Math.PI / 4),
     ringFrag('Cyclopentan', 'sat', 5, false, 0),
     ringFrag('Cyclohexan', 'sat', 6, false, Math.PI / 6),
     { name: 'Chairs', group: 'sat', atoms: [{ el: 'C', dx: -R, dy: -R * .6 }, { el: 'C', dx: -R * .3, dy: -R }, { el: 'C', dx: R * .4, dy: -R * .6 }, { el: 'C', dx: R, dy: R * .1 }, { el: 'C', dx: R * .3, dy: R * .6 }, { el: 'C', dx: -R * .4, dy: R * .1 }], bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]] },
     ringFrag('Benzen', 'aro', 6, true, Math.PI / 6, null, [0, 2, 4]),
-    { name: 'Toluen', group: 'aro', atoms: [{ el: 'C', dx: 0, dy: -R }, { el: 'C', dx: D / 2, dy: -R / 2 }, { el: 'C', dx: D / 2, dy: R / 2 }, { el: 'C', dx: 0, dy: R }, { el: 'C', dx: -D / 2, dy: R / 2 }, { el: 'C', dx: -D / 2, dy: -R / 2 }, { el: 'C', dx: 0, dy: -2 * R }, { el: 'C', dx: 0, dy: -3 * R }], bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [0, 6], [6, 7]], ring: { cx: 0, cy: 0, r: R, aromatic: true, dbl: [1, 3, 5], vertices: [0, 1, 2, 3, 4, 5] } },
+    { name: 'Toluen', group: 'aro', atoms: [{ el: 'C', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: R, dy: 0 }, { el: 'C', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R, dy: 0 }, { el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: R * 2, dy: 0 }], bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [1, 6]], ring: { cx: 0, cy: 0, r: R, aromatic: true, dbl: [0, 2, 4], vertices: [0, 1, 2, 3, 4, 5] } },
     { name: 'Naftalen', group: 'aro',
-      atoms: [{ el: 'C', dx: 0, dy: -R }, { el: 'C', dx: D / 2, dy: -R / 2 }, { el: 'C', dx: D / 2, dy: R / 2 }, { el: 'C', dx: 0, dy: R }, { el: 'C', dx: -D / 2, dy: R / 2 }, { el: 'C', dx: -D / 2, dy: -R / 2 },
-              { el: 'C', dx: D, dy: -R }, { el: 'C', dx: D * 1.5, dy: -R / 2 }, { el: 'C', dx: D * 1.5, dy: R / 2 }, { el: 'C', dx: D, dy: R }],
+      atoms: [{ el: 'C', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: R, dy: 0 }, { el: 'C', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R, dy: 0 }, { el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 2 },
+              { el: 'C', dx: R * 2, dy: 0 }, { el: 'C', dx: R * 2.5, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: R * 2, dy: R * Math.sqrt(3) }, { el: 'C', dx: R, dy: R * Math.sqrt(3) }],
       bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [1, 6], [6, 7], [7, 8], [8, 9], [9, 2]],
-      rings: [{ cx: 0, cy: 0, r: R, aromatic: true, dbl: [1, 3, 5], vertices: [0, 1, 2, 3, 4, 5] }, { cx: D, cy: 0, r: R, aromatic: true, dbl: [7, 9], vertices: [1, 6, 7, 8, 9, 2] }] },
-    ringFrag('Fenol', 'aro', 6, true, Math.PI / 6, [0, 0, 0, 0, 0, 'O'], [0, 2, 4], { anchor: 3, anchorOffset: ang(3, 6, Math.PI / 6) }),
+      rings: [{ cx: 0, cy: 0, r: R, aromatic: true, dbl: [0, 2, 4], vertices: [0, 1, 2, 3, 4, 5] }, { cx: R * 1.5, cy: R * Math.sqrt(3) / 2, r: R, aromatic: true, dbl: [7, 9], vertices: [1, 6, 7, 8, 9, 2] }] },
+    phenolFrag(),
     ringFrag('Pyrrole (N)', 'het', 5, true, -Math.PI / 2, [0, 0, 0, 0, 'N'], [0, 2]),
     ringFrag('Furan (O)', 'het', 5, true, -Math.PI / 2, [0, 0, 0, 0, 'O'], [0, 2]),
     ringFrag('Thiophene (S)', 'het', 5, true, -Math.PI / 2, [0, 0, 0, 0, 'S'], [0, 2]),
     ringFrag('Piridine (N)', 'het', 6, true, Math.PI / 6, ['N', 0, 0, 0, 0, 0], [0, 2, 4]),
     ringFrag('Imidazole', 'het', 5, true, -Math.PI / 2, ['N', 0, 'N', 0, 0], [0, 3]),
     // ---- Nhóm chức ----
-    funcFrag('–OH', [{ el: 'O', dx: 0, dy: 0 }, { el: 'H', dx: R * .75, dy: 0 }], [[0, 1]]),
-    funcFrag('–NH2', [{ el: 'N', dx: 0, dy: 0 }, { el: 'H', dx: R * .75, dy: -R * .35 }, { el: 'H', dx: R * .75, dy: R * .35 }], [[0, 1], [0, 2]]),
-    funcFrag('–SH', [{ el: 'S', dx: 0, dy: 0 }, { el: 'H', dx: R * .75, dy: 0 }], [[0, 1]]),
+    funcFrag('–OH', [{ el: 'O', dx: 0, dy: 0 }, { el: 'H', dx: R, dy: 0 }], [[0, 1]]),
+    funcFrag('–NH2', [{ el: 'N', dx: 0, dy: 0 }, { el: 'H', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'H', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1], [0, 2]]),
+    funcFrag('–SH', [{ el: 'S', dx: 0, dy: 0 }, { el: 'H', dx: R, dy: 0 }], [[0, 1]]),
     funcFrag('=O', [{ el: 'O', dx: 0, dy: 0 }], [], { order: 2 }),
     funcFrag('=S', [{ el: 'S', dx: 0, dy: 0 }], [], { order: 2 }),
-    funcFrag('–CHO', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R * .9, dy: -R * .4 }, { el: 'H', dx: R * .8, dy: R * .45 }], [[0, 1, 2], [0, 2]]),
-    funcFrag('–COOH', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R * .9, dy: -R * .4 }, { el: 'O', dx: R * .8, dy: R * .5 }, { el: 'H', dx: R * 1.55, dy: R * .5 }], [[0, 1, 2], [0, 2], [2, 3]]),
-    funcFrag('–COOCH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R * .9, dy: -R * .4 }, { el: 'O', dx: R * .8, dy: R * .5 }, { el: 'C', dx: R * 1.6, dy: R * .8 }], [[0, 1, 2], [0, 2], [2, 3]]),
-    funcFrag('–NO2', [{ el: 'N', dx: 0, dy: 0 }, { el: 'O', dx: R * .85, dy: -R * .45 }, { el: 'O', dx: R * .85, dy: R * .45 }], [[0, 1, 2], [0, 2, 2]]),
+    funcFrag('–CHO', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'H', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
+    funcFrag('–COOH', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'OH', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
+    funcFrag('–COOCH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: R, dy: R * Math.sqrt(3) }], [[0, 1, 2], [0, 2], [2, 3]]),
+    funcFrag('–NO2', [{ el: 'N⁺', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O⁻', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
     funcFrag('–CN', [{ el: 'C', dx: 0, dy: 0 }, { el: 'N', dx: R, dy: 0 }], [[0, 1, 3]]),
     funcFrag('–F', [{ el: 'F', dx: 0, dy: 0 }], []),
     funcFrag('–Cl', [{ el: 'Cl', dx: 0, dy: 0 }], []),
     funcFrag('–Br', [{ el: 'Br', dx: 0, dy: 0 }], []),
     funcFrag('–I', [{ el: 'I', dx: 0, dy: 0 }], []),
-    funcFrag('–CH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }], [[0, 1]]),
+    funcFrag('–CH3', [{ el: 'C', dx: 0, dy: 0 }], []),
     // ---- Phân tử mẫu ----
     chainFrag('Etan (C2)', 2),
     chainFrag('Propan (C3)', 3),
     chainFrag('Butan (C4)', 4),
     chainFrag('Pentan (C5)', 5),
-    { name: 'Etanol', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 2, dy: 0 }, { el: 'H', dx: R * 2.75, dy: 0 }], bonds: [[0, 1], [1, 2], [2, 3]] },
-    { name: 'Axit axetic', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.9, dy: -R * .5 }, { el: 'O', dx: R * 1.8, dy: R * .55 }, { el: 'H', dx: R * 2.55, dy: R * .75 }], bonds: [[0, 1], [1, 2, 2], [1, 3], [3, 4]] },
-    { name: 'Aceton', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: R * .5 }, { el: 'C', dx: R, dy: -R * .5 }, { el: 'O', dx: -R * .9, dy: 0 }], bonds: [[0, 1], [0, 2], [0, 3, 2]] },
+    { name: 'Etanol', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 2, dy: 0 }, { el: 'H', dx: R * 3, dy: 0 }], bonds: [[0, 1], [1, 2], [2, 3]] },
+    { name: 'Axit axetic', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.5, dy: -R * Math.sqrt(3) / 2 }, { el: 'OH', dx: R * 1.5, dy: R * Math.sqrt(3) / 2 }], bonds: [[0, 1], [1, 2, 2], [1, 3]] },
+    { name: 'Aceton', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'O', dx: R, dy: 0 }], bonds: [[0, 1], [0, 2], [0, 3, 2]] },
     { name: 'Ethen', group: 'mol', atoms: [{ el: 'C', dx: -R / 2, dy: 0 }, { el: 'C', dx: R / 2, dy: 0 }], bonds: [[0, 1, 2]] },
     { name: 'Etyne', group: 'mol', atoms: [{ el: 'C', dx: -R, dy: 0 }, { el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }], bonds: [[0, 1, 3], [1, 2, 3]] }
   ];
@@ -126,11 +139,12 @@ window.ChemTemplates = (() => {
       if (!host) continue;
       host.innerHTML = '';
       for (const f of FRAGS.filter(f => f.group === g)) {
-        if (q && !f.name.toLowerCase().includes(q)) continue;
+        const englishName = window.ChemI18n ? window.ChemI18n.name(f.name) : f.name;
+        if (q && !f.name.toLowerCase().includes(q) && !englishName.toLowerCase().includes(q)) continue;
         const b = document.createElement('button');
         b.className = 'tpl'; b.dataset.frag = f.name;
         b.appendChild(thumb(f));
-        const s = document.createElement('span'); s.textContent = f.name;
+        const s = document.createElement('span'); s.textContent = englishName;
         b.appendChild(s);
         host.appendChild(b);
       }
