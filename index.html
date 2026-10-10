@@ -185,7 +185,9 @@
             <section class="chem-property-group">
               <h3>Tùy chọn xuất</h3>
               <label class="chem-option">Nền <input id="optBg" type="color" value="#ffffff"></label>
-              <label class="chem-option">Nền trong suốt <input id="optTransparent" type="checkbox"></label>
+              <label class="chem-option chem-select-option">Nền trong suốt
+                <select id="optTransparent"><option value="disabled">Tắt</option><option value="enabled">Bật</option></select>
+              </label>
               <div class="btnrow chem-export-actions">
                 <button class="matter-btn chem-action" data-action="copy-svg">Sao chép SVG</button>
                 <button class="matter-btn chem-action" data-action="export-svg">Tải .svg</button>
@@ -201,20 +203,37 @@
           <div class="tabpane" id="pane-settings">
             <section class="chem-property-group">
               <h3>Kiểu vẽ mặc định</h3>
-              <label class="chem-option">Độ dài liên kết <input id="optBondLen" type="range" min="24" max="64" value="40"><b id="optBondLenV">40</b></label>
-              <label class="chem-option">Độ dày nét <input id="optStroke" type="range" min="1" max="5" step="0.5" value="2.5"><b id="optStrokeV">2.5</b></label>
-              <label class="chem-option">Cỡ chữ <input id="optFont" type="range" min="12" max="30" value="20"><b id="optFontV">20</b></label>
-              <label class="chem-option">Vòng thơm vẽ vòng tròn trong <input id="optCircle" type="checkbox"></label>
-              <label class="chem-option">Vòng thơm vẽ liên kết đôi xen kẽ (Kekulé) <input id="optKekule" type="checkbox" checked></label>
+              <label class="chem-option chem-range-option">Độ dài liên kết <input id="optBondLen" type="range" min="24" max="64" value="40"><b id="optBondLenV">40</b></label>
+              <label class="chem-option chem-range-option">Độ dày nét <input id="optStroke" type="range" min="1" max="5" step="0.5" value="2.5"><b id="optStrokeV">2.5</b></label>
+              <label class="chem-option chem-range-option">Cỡ chữ <input id="optFont" type="range" min="12" max="30" value="20"><b id="optFontV">20</b></label>
+              <label class="chem-option chem-select-option">Vòng thơm vẽ vòng tròn trong
+                <select id="optCircle"><option value="disabled">Tắt</option><option value="enabled">Bật</option></select>
+              </label>
+              <label class="chem-option chem-select-option">Vòng thơm vẽ liên kết đôi xen kẽ (Kekulé)
+                <select id="optKekule"><option value="disabled">Tắt</option><option value="enabled" selected>Bật</option></select>
+              </label>
+            </section>
+            <section class="chem-property-group">
+              <h3>Công cụ chọn mặc định</h3>
+              <label class="chem-option chem-select-option">Chế độ chọn
+                <select id="settingsSelectionMode">
+                  <option value="select">Chọn mặc định (khung chữ nhật)</option>
+                  <option value="lasso">Lasso Select (chọn vùng tự do)</option>
+                </select>
+              </label>
             </section>
             <section class="chem-property-group">
               <h3>Lưới mặc định</h3>
-              <label class="chem-option">Hiện lưới <input id="settingsGrid" type="checkbox" checked></label>
-              <label class="chem-option">Bắt điểm vào lưới <input id="settingsSnap" type="checkbox" checked></label>
-              <label class="chem-option">Loại lưới
+              <label class="chem-option chem-select-option">Hiện lưới
+                <select id="settingsGrid"><option value="disabled">Tắt</option><option value="enabled" selected>Bật</option></select>
+              </label>
+              <label class="chem-option chem-select-option">Bắt điểm vào lưới
+                <select id="settingsSnap"><option value="disabled">Tắt</option><option value="enabled" selected>Bật</option></select>
+              </label>
+              <label class="chem-option chem-select-option">Loại lưới
                 <select id="settingsGridType"><option value="square">Vuông</option><option value="triangle">Tam giác</option></select>
               </label>
-              <label class="chem-option">Trục lưới tam giác
+              <label class="chem-option chem-select-option">Trục lưới tam giác
                 <select id="settingsGridOrientation"><option value="horizontal">Nằm ngang</option><option value="vertical">Nằm dọc</option></select>
               </label>
             </section>
@@ -244,8 +263,10 @@
             </section>
             <section class="chem-property-group">
               <h3>Hiệu ứng shiny</h3>
-              <label class="chem-option">Bật shiny <input id="settingsShiny" type="checkbox"></label>
-              <label class="chem-option">Độ mạnh gradient <input id="optShinyIntensity" type="range" min="10" max="100" step="5" value="100"><b id="optShinyIntensityV">100%</b></label>
+              <label class="chem-option chem-select-option">Bật shiny
+                <select id="settingsShiny"><option value="disabled" selected>Tắt</option><option value="enabled">Bật</option></select>
+              </label>
+              <label class="chem-option chem-range-option">Độ mạnh gradient <input id="optShinyIntensity" type="range" min="10" max="100" step="5" value="100"><b id="optShinyIntensityV">100%</b></label>
             </section>
             <div class="btnrow"><button class="btn" data-action="reset-settings" type="button">Khôi phục cài đặt ban đầu</button></div>
           </div>

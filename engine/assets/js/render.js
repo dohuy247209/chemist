@@ -335,8 +335,8 @@ window.ChemRender = (() => {
     return {
       stroke: parseFloat(v('optStroke')) || 2.5,
       font: parseFloat(v('optFont')) || 20,
-      circle: document.getElementById('optCircle').checked,
-      kekule: document.getElementById('optKekule').checked
+      circle: document.getElementById('optCircle').value === 'enabled',
+      kekule: document.getElementById('optKekule').value === 'enabled'
     };
   }
   return { renderAll, drawLabel, currentOpts };

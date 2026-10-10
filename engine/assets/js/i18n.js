@@ -42,6 +42,9 @@ window.ChemI18n = (() => {
     'Mũi tên được chèn gần tâm khung vẽ; chọn và kéo để di chuyển.':
       'Arrows are inserted near the canvas center; select and drag to move.',
     'Kiểu vẽ': 'Drawing style', 'Kiểu vẽ mặc định': 'Default drawing style', 'Độ dài liên kết': 'Bond length', 'Độ dày nét': 'Stroke width', 'Cỡ chữ': 'Font size',
+    'Tùy chọn xuất': 'Export options', 'Bật': 'Enable', 'Tắt': 'Disable',
+    'Công cụ chọn mặc định': 'Default selection tool', 'Chế độ chọn': 'Selection mode',
+    'Chọn mặc định (khung chữ nhật)': 'Default select (rectangle)', 'Lasso Select (chọn vùng tự do)': 'Lasso Select (freehand area)',
     'Lưới mặc định': 'Default grid', 'Vuông': 'Square', 'Tam giác': 'Triangle',
     'Đổi phía nét phụ': 'Swap parallel line side',
     'Vòng thơm vẽ vòng tròn trong': 'Draw aromatic rings as circles', 'Vòng thơm vẽ liên kết đôi xen kẽ (Kekulé)':

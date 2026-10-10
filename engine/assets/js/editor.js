@@ -4,7 +4,7 @@ window.ChemEditor = (() => {
   const M = window.ChemModel;
   const text = (vi, en) => window.ChemI18n ? window.ChemI18n.text(vi, en) : vi;
   const st = {
-    tool: 'select', el: 'C', order: 1, bstyle: 'solid',
+    tool: 'select', selectionMode: 'select', el: 'C', order: 1, bstyle: 'solid',
     tpl: null, tplRotation: 0, sel: null, snap: true, grid: true, gridType: 'square', gridOrientation: 'horizontal', space: false,
     view: { x: 0, y: 0, k: 1 }, drag: null, hover: null, changed: false
   };
@@ -184,8 +184,8 @@ window.ChemEditor = (() => {
     const order = st.order === 3 ? (english ? 'triple' : 'ba') : st.order === 2 ? (english ? 'double' : 'đôi') : (english ? 'single' : 'đơn');
     const styles = english ? { wedge: 'wedge', hash: 'hashed' } : { wedge: 'nét đậm', hash: 'nét đứt' };
     return (english
-      ? { select: 'Select', pan: 'Pan', atom: 'Place atom (' + st.el + ')', bond: `${order} bond${st.bstyle !== 'solid' ? ' · ' + (styles[st.bstyle] || st.bstyle) : ''}`, erase: 'Erase', chain: 'Carbon chain', text: 'Insert text' }
-      : { select: 'Chọn', pan: 'Kéo khung', atom: 'Đặt nguyên tử (' + st.el + ')', bond: `Liên kết ${order}${st.bstyle !== 'solid' ? ' · ' + (styles[st.bstyle] || st.bstyle) : ''}`, erase: 'Tẩy', chain: 'Mạch zigzag', text: 'Chèn văn bản' })[st.tool] || st.tool;
+      ? { select: st.selectionMode === 'lasso' ? 'Lasso select' : 'Select', pan: 'Pan', atom: 'Place atom (' + st.el + ')', bond: `${order} bond${st.bstyle !== 'solid' ? ' · ' + (styles[st.bstyle] || st.bstyle) : ''}`, erase: 'Erase', chain: 'Carbon chain', text: 'Insert text' }
+      : { select: st.selectionMode === 'lasso' ? 'Chọn vùng tự do' : 'Chọn', pan: 'Kéo khung', atom: 'Đặt nguyên tử (' + st.el + ')', bond: `Liên kết ${order}${st.bstyle !== 'solid' ? ' · ' + (styles[st.bstyle] || st.bstyle) : ''}`, erase: 'Tẩy', chain: 'Mạch zigzag', text: 'Chèn văn bản' })[st.tool] || st.tool;
   }
   function clearOverlay() { while (overlay.firstChild) overlay.removeChild(overlay.firstChild); }
   function ov(tag, attrs, parent) {
@@ -196,15 +196,58 @@ window.ChemEditor = (() => {
   // Vẽ vùng chọn (multi) + ghost + hover lên lớp overlay.
   function drawOverlay() {
     clearOverlay();
-    if (st.sel && st.sel.type === 'multi') for (const id of st.sel.ids) {
-      const a = M.atom(id); if (a) ov('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: window.ChemTheme.palette().blue, 'fill-opacity': 0.12, stroke: window.ChemTheme.palette().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' });
+    const draggingLasso = st.drag && st.drag.mode === 'lasso';
+    if (draggingLasso) {
+      ov('polygon', {
+        points: st.drag.points.map(p => p.x + ',' + p.y).join(' '),
+        fill: window.ChemTheme.palette().blue,
+        'fill-opacity': 0.08,
+        stroke: window.ChemTheme.palette().blue,
+        'stroke-opacity': 0.85,
+        'stroke-width': 1.5,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'stroke-dasharray': '4 3',
+        'pointer-events': 'none'
+      });
     }
-    if (st.sel && st.sel.type === 'atoms') for (const id of st.sel.ids) {
-      const a = M.atom(id); if (a) ov('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: window.ChemTheme.palette().blue, 'fill-opacity': 0.12, stroke: window.ChemTheme.palette().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' });
-    }
+    const selection = draggingLasso ? lassoSelection(st.drag.points) : st.sel;
+    drawSelectionOverlay(selection, draggingLasso);
     if (st.drag) drawDragGhost();
     else if (st.tool === 'erase' && st.hover) drawHover();
     else if (st.tpl && st.hoverP) drawTplGhost();
+  }
+  function drawSelectionOverlay(selection, preview) {
+    if (!selection) return;
+    const blue = window.ChemTheme.palette().blue;
+    const atomIds = selection.type === 'atom' ? [selection.id] : selection.ids || [];
+    const radius = preview ? 13 : 15;
+    for (const id of atomIds) {
+      const atom = M.atom(id);
+      if (atom) ov('circle', {
+        cx: atom.x, cy: atom.y, r: radius, class: 'sel-ring',
+        fill: blue, 'fill-opacity': preview ? 0.06 : 0.12,
+        stroke: blue, 'stroke-width': preview ? 1.5 : 1.5,
+        'stroke-dasharray': preview ? 'none' : '5 3',
+        'pointer-events': 'none'
+      });
+    }
+    const bondIds = selection.type === 'bond' ? [selection.id] : selection.bondIds || [];
+    for (const id of bondIds) {
+      const bond = M.bond(id), a = bond && M.atom(bond.a), b = bond && M.atom(bond.b);
+      if (a && b) ov('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, fill: 'none', stroke: blue, 'stroke-opacity': 0.4, 'stroke-width': 9, 'pointer-events': 'none' });
+    }
+    const textIds = selection.type === 'text' ? [selection.id] : selection.textIds || [];
+    for (const id of textIds) {
+      const annotation = M.textItem(id);
+      if (!annotation) continue;
+      const size = annotation.fontSize || 20;
+      const width = annotation.type === 'arrow'
+        ? Math.max(annotation.width || 96, Math.max((annotation.above || '').length, (annotation.below || '').length) * size * 0.6)
+        : Math.max(size, annotation.text.length * size * 0.6);
+      const height = annotation.type === 'arrow' ? size * 2 + 24 : size;
+      ov('rect', { x: annotation.x - width / 2 - 4, y: annotation.y - height / 2 - 3, width: width + 8, height: height + 6, fill: blue, 'fill-opacity': 0.08, stroke: blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' });
+    }
   }
   function drawHover() {
     const h = st.hover;
@@ -237,6 +280,8 @@ window.ChemEditor = (() => {
     } else if (d.mode === 'chain' && d.cur) {
       const pts = chainPoints(d.start, d.cur);
       ov('polyline', { points: pts.map(p => p.x + ',' + p.y).join(' '), fill: 'none', stroke: window.ChemTheme.palette().ink, 'stroke-width': 2.5, class: 'ghost' });
+    } else if (d.mode === 'lasso') {
+      ov('polyline', { points: d.points.map(p => p.x + ',' + p.y).join(' '), fill: 'none', stroke: window.ChemTheme.palette().blue, 'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-dasharray': '4 3' });
     }
   }
   function chainPoints(start, end) {
@@ -453,6 +498,18 @@ window.ChemEditor = (() => {
       return;
     }
     if (st.tpl) { placeTemplate(window.ChemTemplates.byName(st.tpl), p); st.tpl = null; syncTplButtons(); redraw(); return; }
+    if (st.tool === 'select' && st.selectionMode === 'lasso') {
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+      st.sel = null;
+      const textElement = e.target.closest && e.target.closest('[data-tid]');
+      const annotation = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
+      st.drag = {
+        mode: 'lasso', points: [p], startX: e.clientX, startY: e.clientY,
+        clickSelection: annotation ? { type: 'text', id: annotation.id } : hitTest(p)
+      };
+      redraw();
+      return;
+    }
 
     const textElement = e.target.closest && e.target.closest('[data-tid]');
     const hitText = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
@@ -528,6 +585,14 @@ window.ChemEditor = (() => {
     const d = st.drag;
     if (d.mode === 'pan') { st.view.x = d.vx + (e.clientX - d.sx); st.view.y = d.vy + (e.clientY - d.sy); applyView(); return; }
     if (d.mode === 'box') { d.x1 = p.x; d.y1 = p.y; drawOverlay(); return; }
+    if (d.mode === 'lasso') {
+      const last = d.points[d.points.length - 1];
+      if (Math.hypot(p.x - last.x, p.y - last.y) >= 2 / st.view.k) {
+        d.points.push(p);
+      }
+      drawOverlay();
+      return;
+    }
     if (d.mode === 'chain') { d.cur = snapP(p); drawOverlay(); return; }
     if (d.mode === 'erase') { eraseAt(p); return; }
     if (d.mode === 'move-text') {
@@ -584,6 +649,18 @@ window.ChemEditor = (() => {
     const d = st.drag; st.drag = null;
     try { stage.releasePointerCapture(e.pointerId); } catch (err) {}
     if (d.mode === 'pan') { redraw(); return; }
+    if (d.mode === 'lasso') {
+      if (e.type !== 'pointercancel') {
+        const p = toWorld(e), last = d.points[d.points.length - 1];
+        const moved = d.points.length > 1 || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 5;
+        if (!moved) st.sel = d.clickSelection;
+        else {
+          if (Math.hypot(p.x - last.x, p.y - last.y) >= 0.01) d.points.push(p);
+          st.sel = lassoSelection(d.points);
+        }
+      } else st.sel = null;
+      redraw(); return;
+    }
     if (d.mode === 'box') {
       const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
       const y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
@@ -622,6 +699,36 @@ window.ChemEditor = (() => {
     if (a) return { type: 'atom', id: a.id };
     const b = M.nearBond(p, 9);
     return b ? { type: 'bond', id: b.id } : null;
+  }
+  function pointInPolygon(point, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const a = points[j], b = points[i];
+      const cross = (point.x - a.x) * (b.y - a.y) - (point.y - a.y) * (b.x - a.x);
+      if (Math.abs(cross) < 0.01 &&
+          point.x >= Math.min(a.x, b.x) - 0.01 && point.x <= Math.max(a.x, b.x) + 0.01 &&
+          point.y >= Math.min(a.y, b.y) - 0.01 && point.y <= Math.max(a.y, b.y) + 0.01) return true;
+      if ((b.y > point.y) !== (a.y > point.y) &&
+          point.x < (a.x - b.x) * (point.y - b.y) / (a.y - b.y) + b.x) inside = !inside;
+    }
+    return inside;
+  }
+  function lassoSelection(points) {
+    if (points.length < 3) return null;
+    const ids = M.S.atoms.filter(atom => pointInPolygon(atom, points)).map(atom => atom.id);
+    const bondIds = M.S.bonds.filter(bond => {
+      const a = M.atom(bond.a), b = M.atom(bond.b);
+      return a && b && pointInPolygon({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, points);
+    }).map(bond => bond.id);
+    const textIds = M.S.texts.filter(annotation => pointInPolygon(annotation, points)).map(annotation => annotation.id);
+    const count = ids.length + bondIds.length + textIds.length;
+    if (!count) return null;
+    if (count === 1) {
+      if (ids.length) return { type: 'atom', id: ids[0] };
+      if (bondIds.length) return { type: 'bond', id: bondIds[0] };
+      return { type: 'text', id: textIds[0] };
+    }
+    return { type: 'multi', ids, bondIds, textIds };
   }
   function eraseAt(p) {
     const h = hitTest(p); if (!h) return;
@@ -681,6 +788,7 @@ window.ChemEditor = (() => {
   }
   function onKeyUp(e) { if (e.key === ' ') { st.space = false; stage.classList.remove('panning'); } }
   function onDblClick(e) {
+    if (st.tool === 'select' && st.selectionMode === 'lasso') return;
     const textElement = e.target.closest && e.target.closest('[data-tid]');
     const annotation = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
     if (annotation && annotation.type !== 'arrow') {
@@ -708,8 +816,16 @@ window.ChemEditor = (() => {
       b.classList.toggle('active', active);
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
-    stage.style.cursor = t === 'pan' ? 'grab' : t === 'select' ? 'default' : 'crosshair';
+    stage.style.cursor = t === 'pan' ? 'grab' : t === 'select' && st.selectionMode !== 'lasso' ? 'default' : 'crosshair';
     syncTplButtons(); redraw();
+  }
+  function setSelectionMode(mode) {
+    if (mode !== 'select' && mode !== 'lasso') throw new Error(`Unsupported selection mode: ${mode}`);
+    st.selectionMode = mode;
+    const setting = document.getElementById('settingsSelectionMode');
+    if (setting) setting.value = mode;
+    if (!stage) return;
+    setTool('select');
   }
   function setBond(order, style) {
     st.order = order; st.bstyle = style; st.tool = 'bond'; st.tpl = null;
@@ -755,7 +871,11 @@ window.ChemEditor = (() => {
       if (s.type === 'atom') M.removeAtom(s.id);
       else if (s.type === 'bond') M.removeBond(s.id);
       else if (s.type === 'text') M.removeText(s.id);
-      else if (s.ids) s.ids.forEach(id => M.removeAtom(id));
+      else if (s.ids) {
+        s.ids.forEach(id => M.removeAtom(id));
+        (s.bondIds || []).forEach(id => M.removeBond(id));
+        (s.textIds || []).forEach(id => M.removeText(id));
+      }
     }, 'delete');
     st.sel = null; redraw();
   }
@@ -957,7 +1077,7 @@ window.ChemEditor = (() => {
     setTimeout(() => { const h = document.getElementById('hint'); if (h) h.classList.add('hide'); }, 7000);
   }
   return {
-    st, init, redraw, applyView, setTool, setBond, setElement, setTemplate,
+    st, init, redraw, applyView, setTool, setSelectionMode, setBond, setElement, setTemplate,
     selectAll, deleteSel, rotateSelection, toggleGrid, toggleGridType, toggleGridOrientation, toggleSnap, updateGrid, zoomBtn, fitView, setHint, placeTemplate
   };
 })();

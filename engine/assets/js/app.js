@@ -66,18 +66,20 @@ window.ChemApp = (() => {
 
   function saveSettings() {
     if (!document.getElementById('optBondLen')) return;
+    const isEnabled = id => document.getElementById(id).value === 'enabled';
     storedSettings = {
       bondLength: +document.getElementById('optBondLen').value,
       stroke: +document.getElementById('optStroke').value,
       font: +document.getElementById('optFont').value,
-      circle: document.getElementById('optCircle').checked,
-      kekule: document.getElementById('optKekule').checked,
+      circle: isEnabled('optCircle'),
+      kekule: isEnabled('optKekule'),
       background: document.getElementById('optBg').value,
-      transparent: document.getElementById('optTransparent').checked,
+      transparent: isEnabled('optTransparent'),
       grid: Ed.st.grid,
       snap: Ed.st.snap,
       gridType: Ed.st.gridType,
       gridOrientation: Ed.st.gridOrientation,
+      selectionMode: Ed.st.selectionMode,
       shiny: document.getElementById('stage').classList.contains('shiny'),
       shinyIntensity: +document.getElementById('optShinyIntensity').value
     };
@@ -90,25 +92,27 @@ window.ChemApp = (() => {
       const input = document.getElementById(id);
       if (input && valid(s[key])) input.value = s[key];
     };
-    const setChecked = (id, key) => {
+    const setEnabled = (id, key) => {
       const input = document.getElementById(id);
-      if (input && typeof s[key] === 'boolean') input.checked = s[key];
+      if (input && typeof s[key] === 'boolean') input.value = s[key] ? 'enabled' : 'disabled';
     };
     setValue('optBondLen', 'bondLength', v => Number.isFinite(v) && v >= 24 && v <= 64);
     setValue('optStroke', 'stroke', v => Number.isFinite(v) && v >= 1 && v <= 5);
     setValue('optFont', 'font', v => Number.isFinite(v) && v >= 12 && v <= 30);
     setValue('optShinyIntensity', 'shinyIntensity', v => Number.isFinite(v) && v >= 10 && v <= 100);
     setValue('optBg', 'background', v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v));
-    setChecked('optCircle', 'circle');
-    setChecked('optKekule', 'kekule');
-    setChecked('optTransparent', 'transparent');
-    setChecked('settingsGrid', 'grid');
-    setChecked('settingsSnap', 'snap');
-    setChecked('settingsShiny', 'shiny');
+    setEnabled('optCircle', 'circle');
+    setEnabled('optKekule', 'kekule');
+    setEnabled('optTransparent', 'transparent');
+    setEnabled('settingsGrid', 'grid');
+    setEnabled('settingsSnap', 'snap');
+    setEnabled('settingsShiny', 'shiny');
+    if (s.selectionMode === 'select' || s.selectionMode === 'lasso') Ed.st.selectionMode = s.selectionMode;
     if (s.gridType === 'square' || s.gridType === 'triangle') Ed.st.gridType = s.gridType;
     if (s.gridOrientation === 'horizontal' || s.gridOrientation === 'vertical') Ed.st.gridOrientation = s.gridOrientation;
     document.getElementById('settingsGridType').value = Ed.st.gridType;
     document.getElementById('settingsGridOrientation').value = Ed.st.gridOrientation;
+    document.getElementById('settingsSelectionMode').value = Ed.st.selectionMode;
     if (typeof s.grid === 'boolean') Ed.st.grid = s.grid;
     if (typeof s.snap === 'boolean') Ed.st.snap = s.snap;
     document.getElementById('stage').classList.toggle('shiny', s.shiny === true);
@@ -126,22 +130,23 @@ window.ChemApp = (() => {
   }
   function syncShinyControls() {
     const enabled = document.getElementById('stage').classList.contains('shiny');
-    const checkbox = document.getElementById('settingsShiny');
+    const setting = document.getElementById('settingsShiny');
     const menuButton = document.querySelector('[data-action="toggle-shiny"]');
-    if (checkbox) checkbox.checked = enabled;
+    if (setting) setting.value = enabled ? 'enabled' : 'disabled';
     if (menuButton) menuButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
   }
   function resetSettings() {
     const values = { optBondLen: 40, optStroke: 2.5, optFont: 20, optShinyIntensity: 100 };
     for (const [id, value] of Object.entries(values)) document.getElementById(id).value = value;
-    document.getElementById('optCircle').checked = false;
-    document.getElementById('optKekule').checked = true;
+    document.getElementById('optCircle').value = 'disabled';
+    document.getElementById('optKekule').value = 'enabled';
     document.getElementById('optBg').value = Th.palette().canvas;
-    document.getElementById('optTransparent').checked = false;
-    document.getElementById('settingsGrid').checked = true;
-    document.getElementById('settingsSnap').checked = true;
+    document.getElementById('optTransparent').value = 'disabled';
+    document.getElementById('settingsGrid').value = 'enabled';
+    document.getElementById('settingsSnap').value = 'enabled';
     document.getElementById('settingsGridType').value = 'square';
     document.getElementById('settingsGridOrientation').value = 'horizontal';
+    Ed.setSelectionMode('select');
     Ed.st.grid = true; Ed.st.snap = true; Ed.st.gridType = 'square'; Ed.st.gridOrientation = 'horizontal';
     document.getElementById('stage').classList.remove('shiny');
     Th.resetLabelColors();
@@ -399,12 +404,12 @@ window.ChemApp = (() => {
       body.innerHTML = `<div class="propgrid">
         <label>${text('Ký hiệu / nhóm', 'Element / group')}</label>
         <input id="pEl" type="text" list="atomLabels" maxlength="16" autocomplete="off" aria-label="${text('Ký hiệu nguyên tử hoặc nhóm chức', 'Element or functional group')}">
-        <label>${text('LaTeX cho nhãn', 'LaTeX label')}</label><input id="pAtomLatex" type="checkbox">
+        <label>${text('LaTeX cho nhãn', 'LaTeX label')}</label><select id="pAtomLatex"><option value="disabled">${text('Tắt', 'Disable')}</option><option value="enabled">${text('Bật', 'Enable')}</option></select>
         <label>${text('Màu nhãn', 'Label color')}</label>
         <select id="pColor" aria-label="${text('Màu nguyên tử hoặc nhóm chức', 'Element or group color')}">
           ${colorOptionsMarkup(a.color || null, text('Mặc định', 'Default'))}
         </select>
-        <span></span><input id="pColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
+        <input id="pColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
         <label>${text('Toạ độ X', 'X coordinate')}</label><input id="pX" type="number" step="1" value="${a.x}">
         <label>${text('Toạ độ Y', 'Y coordinate')}</label><input id="pY" type="number" step="1" value="${a.y}">
         <label>${text('Bậc', 'Degree')}</label><span class="muted">${M.degree(a.id)} ${text('liên kết', 'bonds')}</span>
@@ -419,8 +424,8 @@ window.ChemApp = (() => {
         if (value !== a.el) M.transact(() => { a.el = value; }, 'prop');
       };
       const latexInput = document.getElementById('pAtomLatex');
-      latexInput.checked = a.latex === true;
-      latexInput.onchange = e => M.transact(() => { a.latex = e.target.checked; }, 'atom-latex');
+      latexInput.value = a.latex === true ? 'enabled' : 'disabled';
+      latexInput.onchange = e => M.transact(() => { a.latex = e.target.value === 'enabled'; }, 'atom-latex');
       const latexHelp = document.createElement('p');
       latexHelp.className = 'muted';
       latexHelp.textContent = text('Dùng CH_3, NH_{2}, N^+ hoặc ký hiệu có dấu $...$.', 'Use CH_3, NH_{2}, N^+, or delimit expressions with $...$.');
@@ -455,7 +460,7 @@ window.ChemApp = (() => {
         <select id="pBondColor" aria-label="${text('Màu liên kết', 'Bond color')}">
           ${colorOptionsMarkup(b.color || null, text('Mặc định', 'Default'))}
         </select>
-        <span></span><input id="pBondColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
+        <input id="pBondColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
         <label>${text('Từ → Đến', 'From → To')}</label><span class="muted">${A ? A.el : '?'} → ${B ? B.el : '?'}</span>
       </div>
       <div class="btnrow">
@@ -486,7 +491,7 @@ window.ChemApp = (() => {
           </select>
           <label>${text('Nhãn phía trên', 'Label above')}</label><input id="pArrowAbove" type="text">
           <label>${text('Nhãn phía dưới', 'Label below')}</label><input id="pArrowBelow" type="text">
-          <label>${text('LaTeX', 'LaTeX')}</label><input id="pTextLatex" type="checkbox">
+          <label>${text('LaTeX', 'LaTeX')}</label><select id="pTextLatex"><option value="disabled">${text('Tắt', 'Disable')}</option><option value="enabled">${text('Bật', 'Enable')}</option></select>
         </div>
         <div class="btnrow"><button class="btn" id="pDeleteText" type="button">${text('Xóa mũi tên', 'Delete arrow')}</button></div>
         <p class="muted">${text('Kéo mũi tên trên khung vẽ để di chuyển. LaTeX hỗ trợ chỉ số và lệnh như \\\\Delta, \\\\rightarrow.', 'Drag the arrow on the canvas to move it. LaTeX supports scripts and commands such as \\\\Delta and \\\\rightarrow.')}</p>`;
@@ -498,13 +503,13 @@ window.ChemApp = (() => {
           input.onchange = e => M.transact(() => { annotation[key] = e.target.value; }, 'arrow-label');
         }
         const latexInput = document.getElementById('pTextLatex');
-        latexInput.checked = annotation.latex === true;
-        latexInput.onchange = e => M.transact(() => { annotation.latex = e.target.checked; }, 'text-latex');
+        latexInput.value = annotation.latex === true ? 'enabled' : 'disabled';
+        latexInput.onchange = e => M.transact(() => { annotation.latex = e.target.value === 'enabled'; }, 'text-latex');
         document.getElementById('pDeleteText').onclick = () => actions.delete();
       } else {
         body.innerHTML = `<div class="propgrid">
           <label>${text('Nội dung', 'Text')}</label><textarea id="pCanvasText" rows="3"></textarea>
-          <label>${text('LaTeX', 'LaTeX')}</label><input id="pTextLatex" type="checkbox">
+          <label>${text('LaTeX', 'LaTeX')}</label><select id="pTextLatex"><option value="disabled">${text('Tắt', 'Disable')}</option><option value="enabled">${text('Bật', 'Enable')}</option></select>
         </div>
         <div class="btnrow"><button class="btn" id="pDeleteText" type="button">${text('Xóa chú thích', 'Delete text')}</button></div>
         <p class="muted">${text('Bật LaTeX để dùng chỉ số, ví dụ $CH_3$, hoặc ký hiệu như \\\\rightarrow.', 'Enable LaTeX for scripts, e.g. $CH_3$, or symbols such as \\\\rightarrow.')}</p>`;
@@ -512,12 +517,17 @@ window.ChemApp = (() => {
         content.value = annotation.text;
         content.onchange = e => M.transact(() => { annotation.text = e.target.value; }, 'text');
         const latexInput = document.getElementById('pTextLatex');
-        latexInput.checked = annotation.latex === true;
-        latexInput.onchange = e => M.transact(() => { annotation.latex = e.target.checked; }, 'text-latex');
+        latexInput.value = annotation.latex === true ? 'enabled' : 'disabled';
+        latexInput.onchange = e => M.transact(() => { annotation.latex = e.target.value === 'enabled'; }, 'text-latex');
         document.getElementById('pDeleteText').onclick = () => actions.delete();
       }
     } else {
-      body.innerHTML = `<p class="muted">${text('Đang chọn', 'Selected')} <b>${sel.ids.length} ${text('nguyên tử', 'atoms')}</b> — ${text('kéo để di chuyển, Del để xóa.', 'drag to move, Del to delete.')}</p>`;
+      const selectedCounts = [
+        sel.ids.length ? `${sel.ids.length} ${text('nguyên tử', 'atoms')}` : '',
+        (sel.bondIds || []).length ? `${sel.bondIds.length} ${text('liên kết', 'bonds')}` : '',
+        (sel.textIds || []).length ? `${sel.textIds.length} ${text('chú thích', 'annotations')}` : ''
+      ].filter(Boolean).join(', ');
+      body.innerHTML = `<p class="muted">${text('Đang chọn', 'Selected')} <b>${selectedCounts}</b> — ${text('Del để xóa.', 'press Del to delete.')}</p>`;
     }
   }
   function updateUndoBtns() {
@@ -587,27 +597,31 @@ window.ChemApp = (() => {
     bindRange('optStroke', 'optStrokeV', () => Ed.redraw());
     bindRange('optFont', 'optFontV', () => Ed.redraw());
     bindRange('optShinyIntensity', 'optShinyIntensityV', () => Ed.redraw());
-    ['optCircle', 'optKekule', 'optBg', 'optTransparent'].forEach(id =>
-      document.getElementById(id).addEventListener('input', () => { Ed.redraw(); X.refreshCodeView(); saveSettings(); }));
+    ['optCircle', 'optKekule', 'optTransparent'].forEach(id =>
+      document.getElementById(id).addEventListener('change', () => { Ed.redraw(); X.refreshCodeView(); saveSettings(); }));
+    document.getElementById('optBg').addEventListener('input', () => { Ed.redraw(); X.refreshCodeView(); saveSettings(); });
     document.querySelectorAll('[data-label-color]').forEach(input => input.addEventListener('input', () => {
       Th.setLabelColor(input.dataset.labelColor, input.value);
       Ed.redraw();
     }));
     document.getElementById('settingsShiny').addEventListener('change', e => {
-      document.getElementById('stage').classList.toggle('shiny', e.target.checked);
+      document.getElementById('stage').classList.toggle('shiny', e.target.value === 'enabled');
       syncShinyControls(); Ed.redraw(); saveSettings();
     });
     document.getElementById('settingsGrid').addEventListener('change', e => {
-      Ed.st.grid = e.target.checked; Ed.updateGrid(); saveSettings();
+      Ed.st.grid = e.target.value === 'enabled'; Ed.updateGrid(); saveSettings();
     });
     document.getElementById('settingsSnap').addEventListener('change', e => {
-      Ed.st.snap = e.target.checked; saveSettings();
+      Ed.st.snap = e.target.value === 'enabled'; saveSettings();
     });
     document.getElementById('settingsGridType').addEventListener('change', e => {
       Ed.st.gridType = e.target.value; Ed.updateGrid(); saveSettings();
     });
     document.getElementById('settingsGridOrientation').addEventListener('change', e => {
       Ed.st.gridOrientation = e.target.value; Ed.updateGrid(); saveSettings();
+    });
+    document.getElementById('settingsSelectionMode').addEventListener('change', e => {
+      Ed.setSelectionMode(e.target.value); saveSettings();
     });
 
     const doFilter = v => T.renderLibraries(v);

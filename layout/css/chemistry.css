@@ -660,12 +660,11 @@ body .dg.main.chem-properties {
 body .dg.main.chem-properties {
   flex-direction: column;
   padding: 0;
-  border-left: 1px solid var(--chem-line);
 }
 
 .chem-panel-scroll {
   flex: 1 1 auto;
-  padding: 4px 14px 16px;
+  padding: 4px 12px 20px;
 }
 
 .chem-panel-scroll > .tabpane {
@@ -678,13 +677,8 @@ body .dg.main.chem-properties {
 }
 
 .chem-property-group {
-  padding-bottom: 15px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--chem-line);
-}
-
-.chem-property-group:last-child {
-  border-bottom: 0;
+  padding-bottom: 2px;
+  margin-bottom: 15px;
 }
 
 .chem-property-group p,
@@ -693,22 +687,27 @@ body .dg.main.chem-properties {
 }
 
 .chem-option {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px 28px;
   align-items: center;
-  gap: 5px;
-  min-height: 34px;
-  margin: 0 -14px;
-  padding: 0 14px;
-  background: var(--chem-row);
+  gap: 6px;
+  min-height: 32px;
+  margin: 3px 0;
+  padding: 2px 0;
   color: var(--chem-muted);
   font-size: 11px;
 }
 
+.chem-range-option {
+  grid-template-columns: minmax(0, 1fr) 88px 28px;
+}
+
 .chem-option input[type="range"] {
-  width: 66%;
-  min-width: 20px;
+  width: 88px;
+  min-width: 0;
+  box-sizing: border-box;
   height: 22px;
-  flex: 1;
+  grid-column: 2;
   margin: 0;
   padding: 0;
   border: 0;
@@ -747,37 +746,63 @@ body .dg.main.chem-properties {
   background: transparent;
 }
 
-.chem-option input[type="checkbox"] {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 7px;
-  margin: 0 0 0 auto;
-  border: 0;
-  border-radius: 50%;
-  background: var(--chem-control-off);
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-
-.chem-option input[type="checkbox"]:checked {
-  background: var(--chem-control-on);
-}
-
 .chem-option input[type="color"] {
   width: 35px;
   height: 23px;
-  margin-left: auto;
-  padding: 1px;
-  border: 1px solid var(--chem-line);
-  background: var(--chem-row);
+  grid-column: 2 / 4;
+  justify-self: end;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
 }
 
 .chem-option b {
-  min-width: 25px;
+  min-width: 0;
+  grid-column: 3;
   color: var(--chem-ink);
   text-align: right;
   font-weight: 400;
+}
+
+.chem-select-option {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 5px 0;
+}
+
+.chem-option select,
+.propgrid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 30px 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  outline: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--chem-row);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%23858593' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--chem-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chem-option select:focus-visible,
+.propgrid select:focus-visible {
+  outline: 2px solid var(--chem-blue);
+  outline-offset: 1px;
+}
+
+.chem-option select option,
+.propgrid select option {
+  background: var(--chem-panel);
+  color: var(--chem-ink);
 }
 
 .chem-action {
@@ -819,10 +844,7 @@ body .dg.main.chem-properties {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 7px;
-  border: 1px solid var(--chem-line);
-  border-radius: 4px;
-  background: var(--chem-row);
+  padding: 5px 2px;
   color: var(--chem-muted);
   font-size: 10px;
 }
@@ -839,7 +861,6 @@ body .dg.main.chem-properties {
   display: flex;
   flex: 0 0 auto;
   margin: 0 -14px;
-  border-bottom: 1px solid var(--chem-line);
 }
 
 .chem-tabs .tab {
@@ -870,6 +891,27 @@ body .dg.main.chem-properties {
   overflow-wrap: anywhere;
 }
 
+.chem-properties .btn,
+.chem-properties .settings-reset-colors {
+  border: 0;
+  border-radius: 5px;
+  background: var(--chem-row);
+  color: var(--chem-ink);
+}
+
+.chem-properties .btn:hover,
+.chem-properties .settings-reset-colors:hover {
+  background: var(--chem-row-hover);
+}
+
+.chem-properties .chem-action {
+  background: transparent;
+}
+
+.chem-properties .chem-action:hover {
+  background: var(--chem-row-hover);
+}
+
 .propgrid {
   display: grid;
   grid-template-columns: 78px minmax(0, 1fr);
@@ -880,15 +922,25 @@ body .dg.main.chem-properties {
 }
 
 .propgrid input,
-.propgrid select,
 .propgrid textarea {
   width: 100%;
   min-width: 0;
-  padding: 4px;
-  border: 1px solid var(--chem-line);
-  border-radius: 3px;
-  background: var(--chem-bg);
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--chem-row);
   color: var(--chem-ink);
+}
+
+.propgrid [hidden] {
+  display: none !important;
+}
+
+.propgrid input:focus-visible,
+.propgrid textarea:focus-visible {
+  outline: 2px solid var(--chem-blue);
+  outline-offset: 1px;
 }
 
 .propgrid textarea {
@@ -899,9 +951,10 @@ body .dg.main.chem-properties {
 }
 
 .propgrid input[type="color"] {
+  grid-column: 2;
   width: 42px;
   height: 26px;
-  padding: 2px;
+  padding: 0;
   cursor: pointer;
 }
 
@@ -983,7 +1036,7 @@ body .dg.main.chem-properties {
 
 @media (max-width: 1000px) {
   .chem-workspace {
-    grid-template-columns: 205px minmax(0, 1fr) 220px;
+    grid-template-columns: 205px minmax(0, 1fr) 245px;
   }
 
   .chem-menus .mbtn {

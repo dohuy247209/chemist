@@ -10,7 +10,7 @@ window.ChemExport = (() => {
     svg.setAttribute('xmlns', NS);
     svg.setAttribute('viewBox', `${r1(box.x)} ${r1(box.y)} ${r1(box.w)} ${r1(box.h)}`);
     svg.setAttribute('width', Math.round(box.w)); svg.setAttribute('height', Math.round(box.h));
-    const transparent = document.getElementById('optTransparent').checked;
+    const transparent = document.getElementById('optTransparent').value === 'enabled';
     if (!transparent) {
       const bg = document.createElementNS(NS, 'rect');
       const c = document.getElementById('optBg').value;
@@ -58,7 +58,7 @@ window.ChemExport = (() => {
       const c = document.createElement('canvas');
       c.width = Math.round(box.w * k); c.height = Math.round(box.h * k);
       const ctx = c.getContext('2d');
-      if (!document.getElementById('optTransparent').checked) { ctx.fillStyle = document.getElementById('optBg').value; ctx.fillRect(0, 0, c.width, c.height); }
+      if (document.getElementById('optTransparent').value !== 'enabled') { ctx.fillStyle = document.getElementById('optBg').value; ctx.fillRect(0, 0, c.width, c.height); }
       ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
       const a = document.createElement('a'); a.download = 'cong-thuc.png'; a.href = c.toDataURL('image/png');
