@@ -833,7 +833,7 @@ window.ChemEditor = (() => {
       : atoms.filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10).length >= 3);
     for (const atom of atoms) Object.assign(atom, rotatePoint(atom, angle, center));
     for (const ring of rings) {
-      const centerPoint = rotatePoint(ring, angle, center);
+      const centerPoint = rotatePoint({ x: ring.cx, y: ring.cy }, angle, center);
       ring.cx = centerPoint.x;
       ring.cy = centerPoint.y;
     }
@@ -844,7 +844,7 @@ window.ChemEditor = (() => {
     M.transact(() => {
       for (const atom of atoms) Object.assign(atom, rotatePoint(atom, angle, { x: 0, y: 0 }));
       for (const ring of M.S.rings) {
-        const center = rotatePoint(ring, angle, { x: 0, y: 0 });
+        const center = rotatePoint({ x: ring.cx, y: ring.cy }, angle, { x: 0, y: 0 });
         ring.cx = center.x; ring.cy = center.y;
       }
       for (const annotation of M.S.texts) Object.assign(annotation, rotatePoint(annotation, angle, { x: 0, y: 0 }));

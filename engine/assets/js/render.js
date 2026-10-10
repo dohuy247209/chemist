@@ -57,7 +57,6 @@ window.ChemRender = (() => {
     const grp = el('g', { 'data-bid': b.id }, g);
     const main = { 'class': 'bond', stroke: paint || pal().ink, 'stroke-width': w, 'stroke-linecap': 'round' };
     const off = Math.max(3.2, w + 2.2);
-    const useInner = (b.cx != null && (b.order === 2 || b.dbl));
     const parallelLine = (shift, side, length, width) => {
       const mx = (G.x1 + G.x2) / 2, my = (G.y1 + G.y2) / 2;
       const half = Math.min(length, availableLength) / 2;
@@ -83,7 +82,7 @@ window.ChemRender = (() => {
         el('line', Object.assign({ x1: cx + G.px * hw, y1: cy + G.py * hw, x2: cx - G.px * hw, y2: cy - G.py * hw }, main, { 'stroke-width': Math.max(1.6, w - 0.6) }), grp);
       }
     } else if (b.order === 2 || (b.arom && b.dbl && o.kekule && !o.circle)) {
-      const side = useInner ? sideSign(G, b) : 1;
+      const side = parallelSide(G, b);
       el('line', Object.assign({ x1: r(G.x1), y1: r(G.y1), x2: r(G.x2), y2: r(G.y2) }, main), grp);
       parallelLine(off, side, availableLength * 0.76, Math.max(1.25, w * 0.72));
     } else if (b.order === 3) {
@@ -101,6 +100,10 @@ window.ChemRender = (() => {
     const mx = (G.x1 + G.x2) / 2, my = (G.y1 + G.y2) / 2;
     const d = (b.cx - mx) * G.px + (b.cy - my) * G.py;
     return d >= 0 ? 1 : -1;
+  }
+  function parallelSide(G, b) {
+    if (b.dblSide !== 1 && b.dblSide !== -1) b.dblSide = b.cx != null ? sideSign(G, b) : 1;
+    return b.dblSide;
   }
   const r = v => Math.round(v * 10) / 10;
   function renderAll(sel) {

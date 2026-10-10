@@ -38,6 +38,8 @@ window.ChemI18n = (() => {
     'Đối tượng đang chọn': 'Selected object', 'Chưa chọn gì. Dùng công cụ Chọn (V) để chọn nguyên tử hoặc liên kết.':
       'Nothing selected. Use Select (V) to choose an atom or bond.',
     'Kiểu vẽ': 'Drawing style', 'Kiểu vẽ mặc định': 'Default drawing style', 'Độ dài liên kết': 'Bond length', 'Độ dày nét': 'Stroke width', 'Cỡ chữ': 'Font size',
+    'Lưới mặc định': 'Default grid', 'Vuông': 'Square', 'Tam giác': 'Triangle',
+    'Đổi phía nét phụ': 'Swap parallel line side',
     'Vòng thơm vẽ vòng tròn trong': 'Draw aromatic rings as circles', 'Vòng thơm vẽ liên kết đôi xen kẽ (Kekulé)':
       'Draw alternating aromatic double bonds (Kekule)', 'Xem trước xuất bản': 'Export preview', 'Nền': 'Background',
     'Nền trong suốt': 'Transparent background', 'Hiệu ứng shiny': 'Shiny effect', 'Bật shiny': 'Enable shiny',

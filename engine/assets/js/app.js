@@ -384,9 +384,14 @@ window.ChemApp = (() => {
         </select>
         <label>${text('Từ → Đến', 'From → To')}</label><span class="muted">${A ? A.el : '?'} → ${B ? B.el : '?'}</span>
       </div>
-      <div class="btnrow"><button class="btn" id="pDelBond">${text('Xóa liên kết', 'Delete bond')}</button></div>`;
+      <div class="btnrow">
+        ${b.style === 'solid' && (b.order === 2 || b.dbl) ? `<button class="btn" id="pSwapDoubleSide" type="button">${text('Đổi phía nét phụ', 'Swap parallel line side')}</button>` : ''}
+        <button class="btn" id="pDelBond">${text('Xóa liên kết', 'Delete bond')}</button>
+      </div>`;
       document.getElementById('pOrder').onchange = e => M.transact(() => { b.order = +e.target.value; b.dbl = false; }, 'prop');
       document.getElementById('pStyle').onchange = e => M.transact(() => { b.style = e.target.value; }, 'prop');
+      const swapDoubleSide = document.getElementById('pSwapDoubleSide');
+      if (swapDoubleSide) swapDoubleSide.onclick = () => M.transact(() => { b.dblSide = b.dblSide === 1 ? -1 : 1; }, 'bond-side');
       document.getElementById('pDelBond').onclick = () => actions.delete();
     } else if (sel.type === 'text') {
       const annotation = M.textItem(sel.id);
