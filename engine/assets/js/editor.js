@@ -8,7 +8,7 @@ window.ChemEditor = (() => {
     tpl: null, tplRotation: 0, sel: null, snap: true, grid: true, gridType: 'square', gridOrientation: 'horizontal', space: false,
     view: { x: 0, y: 0, k: 1 }, drag: null, hover: null, changed: false
   };
-  let stage, viewport, gridRect, overlay, wrap;
+  let stage, viewport, gridRect, overlay, wrap, textInput, textEdit = null, lastTextClick = null;
 
   // ---------- Toạ độ & hiển thị ----------
   function toWorld(e) {
@@ -130,6 +130,47 @@ window.ChemEditor = (() => {
     if (gridRect) gridRect.setAttribute('transform', t);
     const zl = document.getElementById('zoomLabel');
     if (zl) zl.textContent = Math.round(v.k * 100) + '%';
+    positionTextInput();
+  }
+  function positionTextInput() {
+    if (!textInput || !textEdit) return;
+    const stageRect = stage.getBoundingClientRect(), wrapRect = wrap.getBoundingClientRect();
+    textInput.style.left = `${stageRect.left - wrapRect.left + st.view.x + textEdit.x * st.view.k}px`;
+    textInput.style.top = `${stageRect.top - wrapRect.top + st.view.y + textEdit.y * st.view.k}px`;
+    textInput.style.fontSize = `${(parseFloat(document.getElementById('optFont').value) || 20) * st.view.k}px`;
+  }
+  function beginTextEdit(position, id) {
+    finishTextEdit(false);
+    const annotation = id == null ? null : M.textItem(id);
+    textEdit = { x: position.x, y: position.y, id: annotation ? annotation.id : null };
+    textInput.value = annotation ? annotation.text : '';
+    positionTextInput();
+    textInput.hidden = false;
+    textInput.style.width = `${Math.max(84, (textInput.value.length || 8) * (parseFloat(document.getElementById('optFont').value) || 20) * st.view.k * 0.62 + 24)}px`;
+    textInput.focus();
+    textInput.select();
+  }
+  function finishTextEdit(commit) {
+    if (!textEdit) return;
+    const edit = textEdit, value = textInput.value.trim();
+    textEdit = null;
+    textInput.hidden = true;
+    if (!commit || !value) {
+      if (commit && !value) window.ChemApp.toast(text('Nội dung chú thích không được để trống.', 'Annotation text cannot be empty.'));
+      return;
+    }
+    if (edit.id == null) {
+      let annotation;
+      M.transact(() => {
+        annotation = M.addText(edit.x, edit.y, value, parseFloat(document.getElementById('optFont').value) || 20);
+      }, 'text');
+      st.sel = { type: 'text', id: annotation.id };
+    } else {
+      const annotation = M.textItem(edit.id);
+      if (annotation && annotation.text !== value) M.transact(() => { annotation.text = value; }, 'text');
+      st.sel = { type: 'text', id: edit.id };
+    }
+    redraw();
   }
   function redraw() {
     window.ChemRender.renderAll(st.sel);
@@ -404,7 +445,7 @@ window.ChemEditor = (() => {
   // ---------- Xử lý chuột ----------
   function onDown(e) {
     if (e.button === 2) return;
-    stage.focus();
+    if (st.tool !== 'text') stage.focus();
     const p = toWorld(e);
     if (e.button === 1 || st.tool === 'pan' || st.space) {
       st.drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: st.view.x, vy: st.view.y };
@@ -416,16 +457,32 @@ window.ChemEditor = (() => {
     const textElement = e.target.closest && e.target.closest('[data-tid]');
     const hitText = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
     const hitA = M.nearAtom(p, 16), hitB = hitA ? null : M.nearBond(p, 9);
+    const now = performance.now();
+    const isTextDoubleClick = st.tool === 'select' && hitText && hitText.type !== 'arrow' && lastTextClick &&
+      lastTextClick.id === hitText.id && now - lastTextClick.time < 500 &&
+      Math.hypot(e.clientX - lastTextClick.x, e.clientY - lastTextClick.y) < 8;
+    if (isTextDoubleClick) {
+      lastTextClick = null;
+      e.preventDefault();
+      st.sel = { type: 'text', id: hitText.id };
+      beginTextEdit(hitText, hitText.id);
+      redraw();
+      return;
+    }
+    lastTextClick = st.tool === 'select' && hitText
+      ? { id: hitText.id, time: now, x: e.clientX, y: e.clientY }
+      : null;
     try { stage.setPointerCapture(e.pointerId); } catch (err) {}
 
     if (st.tool === 'text') {
-      const value = window.prompt(text('Nhập nội dung chú thích:', 'Enter annotation text:'), '');
-      if (value != null && value.trim()) {
-        let annotation;
-        M.transact(() => { annotation = M.addText(p.x, p.y, value.trim(), parseFloat(document.getElementById('optFont').value) || 20); }, 'text');
-        st.sel = { type: 'text', id: annotation.id };
-        redraw();
+      e.preventDefault();
+      if (hitText && hitText.type !== 'arrow') {
+        beginTextEdit(hitText, hitText.id);
+        return;
       }
+      st.sel = null;
+      redraw();
+      beginTextEdit(p);
       return;
     }
     if (st.tool === 'select') {
@@ -479,7 +536,7 @@ window.ChemEditor = (() => {
         const dx = p.x - d.last.x, dy = p.y - d.last.y;
         if (Math.abs(dx) + Math.abs(dy) > 0.5) {
           annotation.x += dx; annotation.y += dy;
-          d.last = p; d.moved = true; M.markTx(); redraw();
+          d.last = p; d.moved = true; lastTextClick = null; M.markTx(); redraw();
         }
       }
       return;
@@ -626,11 +683,10 @@ window.ChemEditor = (() => {
   function onDblClick(e) {
     const textElement = e.target.closest && e.target.closest('[data-tid]');
     const annotation = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
-    if (annotation) {
-      const value = window.prompt(text('Sửa chú thích:', 'Edit annotation:'), annotation.text);
-      if (value == null) return;
-      if (!value.trim()) { window.ChemApp.toast(text('Nội dung chú thích không được để trống.', 'Annotation text cannot be empty.')); return; }
-      M.transact(() => { annotation.text = value.trim(); }, 'text');
+    if (annotation && annotation.type !== 'arrow') {
+      e.preventDefault();
+      st.sel = { type: 'text', id: annotation.id };
+      beginTextEdit(annotation, annotation.id);
       redraw();
       return;
     }
@@ -870,6 +926,8 @@ window.ChemEditor = (() => {
   // ---------- Khởi tạo ----------
   function init() {
     stage = document.getElementById('stage');
+    wrap = document.getElementById('canvasWrap');
+    textInput = document.getElementById('canvasTextInput');
     viewport = document.getElementById('viewport');
     gridRect = document.getElementById('gridRect');
     overlay = document.getElementById('overlay');
@@ -880,6 +938,15 @@ window.ChemEditor = (() => {
     stage.addEventListener('pointercancel', onUp);
     stage.addEventListener('wheel', onWheel, { passive: false });
     stage.addEventListener('dblclick', onDblClick);
+    textInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); finishTextEdit(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finishTextEdit(false); }
+    });
+    textInput.addEventListener('input', () => {
+      if (textEdit) textInput.style.width = `${Math.max(84, textInput.value.length * (parseFloat(document.getElementById('optFont').value) || 20) * st.view.k * 0.62 + 24)}px`;
+    });
+    textInput.addEventListener('blur', () => finishTextEdit(!!textInput.value.trim()));
+    window.addEventListener('resize', positionTextInput);
     document.addEventListener('keydown', onKey);
     document.addEventListener('keyup', onKeyUp);
     M.onChange(() => redraw());

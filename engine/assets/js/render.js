@@ -27,6 +27,93 @@ window.ChemRender = (() => {
     }
     return t;
   }
+  function latexTokens(source) {
+    const commands = {
+      rightarrow: '→', to: '→', longrightarrow: '⟶', leftarrow: '←', longleftarrow: '⟵',
+      leftrightarrow: '↔', rightleftharpoons: '⇌', gets: '←', pm: '±', times: '×',
+      cdot: '·', Delta: 'Δ', alpha: 'α', beta: 'β', gamma: 'γ'
+    };
+    const tokens = [];
+    for (let i = 0; i < source.length;) {
+      if (source[i] === '_' || source[i] === '^') {
+        const kind = source[i++] === '_' ? 'sub' : 'sup';
+        let value = '';
+        if (source[i] === '{') {
+          let depth = 1;
+          i++;
+          while (i < source.length && depth) {
+            if (source[i] === '{') depth++;
+            else if (source[i] === '}') { depth--; if (!depth) { i++; break; } }
+            if (depth) value += source[i++];
+          }
+        } else if (i < source.length) {
+          if (source[i] === '\\' && i + 1 < source.length) {
+            i++;
+            const match = source.slice(i).match(/^[A-Za-z]+/);
+            if (match) { value = commands[match[0]] || match[0]; i += match[0].length; }
+            else value = source[i++];
+          } else value = source[i++];
+        }
+        if (value) tokens.push({ text: value, script: kind });
+      } else if (source[i] === '\\') {
+        i++;
+        const match = source.slice(i).match(/^[A-Za-z]+/);
+        if (match) {
+          tokens.push({ text: commands[match[0]] || match[0] });
+          i += match[0].length;
+        } else if (i < source.length) tokens.push({ text: source[i++] });
+      } else if (source[i] === '{' || source[i] === '}') i++;
+      else {
+        const start = i++;
+        while (i < source.length && !'_^\\{}'.includes(source[i])) i++;
+        tokens.push({ text: source.slice(start, i) });
+      }
+    }
+    return tokens;
+  }
+  function drawTextContent(element, value, latex, fontSize) {
+    const segments = latex
+      ? value.split(/(\$[^$]*\$)/g).filter(Boolean).flatMap(part =>
+        part[0] === '$' && part[part.length - 1] === '$'
+          ? latexTokens(part.slice(1, -1))
+          : [{ text: part }])
+      : [{ text: value }];
+    for (const segment of segments) {
+      const span = el('tspan', {}, element);
+      span.textContent = segment.text;
+      if (segment.script) {
+        span.setAttribute('font-size', Math.round(fontSize * 0.7));
+        span.setAttribute('baseline-shift', segment.script === 'sub' ? 'sub' : 'super');
+      }
+    }
+  }
+  function drawArrow(world, annotation, ink) {
+    const half = (annotation.width || 96) / 2, x1 = annotation.x - half, x2 = annotation.x + half;
+    const head = 8, stroke = Math.max(1.5, (parseFloat(document.getElementById('optStroke').value) || 2.5) * 0.8);
+    const line = (start, end, y) => {
+      el('line', { x1: start, y1: y, x2: end - Math.sign(end - start) * head, y2: y, stroke: ink, 'stroke-width': stroke, 'stroke-linecap': 'round' }, world);
+      const direction = Math.sign(end - start);
+      const points = `${end},${y} ${end - direction * head},${y - head * 0.65} ${end - direction * head},${y + head * 0.65}`;
+      el('polygon', { points, fill: ink }, world);
+    };
+    if (annotation.arrowType === 'equilibrium') {
+      line(x1, x2, annotation.y - 3);
+      line(x2, x1, annotation.y + 3);
+    } else line(x1, x2, annotation.y);
+    el('rect', {
+      x: x1, y: annotation.y - 12, width: x2 - x1, height: 24,
+      fill: 'transparent', class: 'hit', 'pointer-events': 'all', 'data-tid': annotation.id
+    }, world);
+    for (const [key, y, baseline] of [['above', annotation.y - 14, 'auto'], ['below', annotation.y + 19, 'auto']]) {
+      if (!annotation[key]) continue;
+      const label = el('text', {
+        x: annotation.x, y, 'text-anchor': 'middle', 'dominant-baseline': baseline,
+        'font-family': 'Arial, sans-serif', 'font-size': annotation.fontSize || 20,
+        fill: ink, class: 'canvas-text', 'data-tid': annotation.id
+      }, world);
+      drawTextContent(label, annotation[key], annotation.latex, annotation.fontSize || 20);
+    }
+  }
   function bondGeom(A, B, trimA, trimB) {
     const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
     const ux = dx / L, uy = dy / L, px = -uy, py = ux;
@@ -55,7 +142,7 @@ window.ChemRender = (() => {
     const G = bondGeom(A, B, tA, tB);
     const availableLength = Math.hypot(G.x2 - G.x1, G.y2 - G.y1);
     const grp = el('g', { 'data-bid': b.id }, g);
-    const main = { 'class': 'bond', stroke: paint || pal().ink, 'stroke-width': w, 'stroke-linecap': 'round' };
+    const main = { 'class': 'bond', stroke: b.color || paint || pal().ink, 'stroke-width': w, 'stroke-linecap': 'round' };
     const off = Math.max(3.2, w + 2.2);
     const parallelLine = (shift, side, length, width) => {
       const mx = (G.x1 + G.x2) / 2, my = (G.y1 + G.y2) / 2;
@@ -72,7 +159,7 @@ window.ChemRender = (() => {
       const w0 = 1.6, w1 = 6.5;
       const p = `${G.x1 + G.px * w0},${G.y1 + G.py * w0} ${G.x2 + G.px * w1},${G.y2 + G.py * w1} ${G.x2 - G.px * w1},${G.y2 - G.py * w1} ${G.x1 - G.px * w0},${G.y1 - G.py * w0}`;
       // Không gắn class="bond": CSS #world .bond{fill:none} sẽ làm mất hình wedge.
-      el('polygon', { points: p, fill: paint || pal().ink, stroke: 'none' }, grp).setAttribute('style', 'stroke:none');
+      el('polygon', { points: p, fill: b.color || paint || pal().ink, stroke: 'none' }, grp).setAttribute('style', 'stroke:none');
     } else if (b.style === 'hash') {
       const N = 7;
       for (let i = 1; i <= N; i++) {
@@ -134,17 +221,20 @@ window.ChemRender = (() => {
       const p = parseFloat(input && input.value) || 100;
       return Math.min(1, Math.max(0.1, p / 100));
     })();
+    const bondColor = pal().ink;
+    function gradientColor(color) {
+      const from = color.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
+      const to = bondColor.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
+      return '#' + from.map((channel, i) => Math.round(to[i] + (channel - to[i]) * shinyStrength)
+        .toString(16).padStart(2, '0')).join('');
+    }
     function addGradient(tag, attrs, colors) {
       const id = `shinyGradient${gradientId++}`;
       const gradient = el(tag, Object.assign({ id, gradientUnits: 'userSpaceOnUse' }, attrs), defs);
-      for (const [offset, color, opacity] of colors) {
-        const stop = el('stop', {
-          offset,
-          'stop-color': color,
-          'stop-opacity': String((opacity ?? 1) * shinyStrength)
-        }, gradient);
-        if (stop && offset === '20%') stop.setAttribute('stop-opacity', String((opacity ?? 1) * shinyStrength));
-      }
+      for (const [offset, color] of colors) el('stop', {
+        offset,
+        'stop-color': gradientColor(color)
+      }, gradient);
       return `url(#${id})`;
     }
     function bondPaint(a, b) {
@@ -157,19 +247,19 @@ window.ChemRender = (() => {
         if (colorA === carbonColor) {
           if (!radialCache.has(b.id)) radialCache.set(b.id, addGradient('radialGradient', {
             cx: b.x, cy: b.y, r: bondLength
-          }, [['20%', colorB, 0.2], ['80%', carbonColor, 0.8]]));
+          }, [['20%', colorB], ['80%', carbonColor]]));
           return radialCache.get(b.id);
         }
         if (colorB === carbonColor) {
           if (!radialCache.has(a.id)) radialCache.set(a.id, addGradient('radialGradient', {
             cx: a.x, cy: a.y, r: bondLength
-          }, [['20%', colorA, 0.2], ['80%', carbonColor, 0.8]]));
+          }, [['20%', colorA], ['80%', carbonColor]]));
           return radialCache.get(a.id);
         }
       }
       return addGradient('linearGradient', {
         x1: a.x, y1: a.y, x2: b.x, y2: b.y
-      }, [['20%', colorA, 0.2], ['80%', colorB, 0.8]]);
+      }, [['20%', colorA], ['80%', colorB]]);
     }
     // 1) Vòng thơm: reset trạng thái kép do vòng sinh ra (riêng liên kết đôi người vẽ giữ nguyên order).
     for (const b of M.S.bonds) if (b.dbl) { b.dbl = false; b.cx = undefined; b.cy = undefined; }
@@ -187,7 +277,7 @@ window.ChemRender = (() => {
     const bondLayer = shiny ? el('g', { mask: 'url(#shinyBondMask)' }, world) : world;
     for (const b of M.S.bonds) {
       const A = M.atom(b.a), B = M.atom(b.b);
-      if (A && B) drawBond(bondLayer, b, A, B, o, shiny ? bondPaint(A, B) : null);
+      if (A && B) drawBond(bondLayer, b, A, B, o, shiny && !b.color ? bondPaint(A, B) : null);
     }
     // 3) Vùng chọn phải có màu nền rõ ràng vì trang tích hợp không nạp stylesheet SVG của engine.
     if (sel) {
@@ -206,8 +296,11 @@ window.ChemRender = (() => {
       if (sel.type === 'text') {
         const t = M.textItem(sel.id);
         if (t) {
-          const width = Math.max(t.fontSize, t.text.length * t.fontSize * 0.6);
-          el('rect', { x: t.x - width / 2 - 4, y: t.y - t.fontSize / 2 - 3, width: width + 8, height: t.fontSize + 6, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.08, stroke: pal().blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
+          const width = t.type === 'arrow'
+            ? Math.max(t.width || 96, Math.max((t.above || '').length, (t.below || '').length) * (t.fontSize || 20) * 0.6)
+            : Math.max(t.fontSize || 20, t.text.length * (t.fontSize || 20) * 0.6);
+          const height = t.type === 'arrow' ? (t.fontSize || 20) * 2 + 24 : (t.fontSize || 20);
+          el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.08, stroke: pal().blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
         }
       }
     }
@@ -218,8 +311,12 @@ window.ChemRender = (() => {
       el('circle', { cx: a.x, cy: a.y, r: 12, fill: 'rgba(0,0,0,0)', 'data-aid': a.id, style: 'pointer-events:all' }, world);
     }
     for (const t of M.S.texts) {
+      if (t.type === 'arrow') {
+        drawArrow(world, t, pal().ink);
+        continue;
+      }
       const label = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': 'Arial, sans-serif', 'font-size': t.fontSize, fill: pal().ink, class: 'canvas-text', 'data-tid': t.id }, world);
-      label.textContent = t.text;
+      drawTextContent(label, t.text, t.latex, t.fontSize || 20);
     }
     ChemExport.refreshCodeView();
     const st = document.getElementById('stCount');

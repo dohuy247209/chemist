@@ -32,7 +32,11 @@ window.ChemModel = (() => {
   const atom = id => S.atoms.find(a => a.id === id);
   const bond = id => S.bonds.find(b => b.id === id);
   function addAtom(x, y, el) { const a = { id: S.seq++, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, el: el || 'C' }; S.atoms.push(a); return a; }
-  function addText(x, y, value, fontSize) { const t = { id: S.seq++, x, y, text: value, fontSize: fontSize || 20 }; S.texts.push(t); return t; }
+  function addText(x, y, value, fontSize, options) {
+    const t = Object.assign({ id: S.seq++, x, y, text: value, fontSize: fontSize || 20, latex: false, type: 'text' }, options || {});
+    S.texts.push(t);
+    return t;
+  }
   const textItem = id => S.texts.find(t => t.id === id);
   function removeText(id) { S.texts = S.texts.filter(t => t.id !== id); }
   function addBond(ai, bi, order, style, extra) {
@@ -90,6 +94,12 @@ window.ChemModel = (() => {
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (const a of S.atoms) { x0 = Math.min(x0, a.x); y0 = Math.min(y0, a.y); x1 = Math.max(x1, a.x); y1 = Math.max(y1, a.y); }
     for (const t of S.texts) {
+      if (t.type === 'arrow') {
+        const width = t.width || 96, labelWidth = Math.max((t.above || '').length, (t.below || '').length) * (t.fontSize || 20) * 0.6;
+        x0 = Math.min(x0, t.x - Math.max(width, labelWidth) / 2); x1 = Math.max(x1, t.x + Math.max(width, labelWidth) / 2);
+        y0 = Math.min(y0, t.y - (t.above ? t.fontSize || 20 : 12)); y1 = Math.max(y1, t.y + (t.below ? t.fontSize || 20 : 12));
+        continue;
+      }
       const width = t.text.length * t.fontSize * 0.6;
       x0 = Math.min(x0, t.x - width / 2); y0 = Math.min(y0, t.y - t.fontSize / 2);
       x1 = Math.max(x1, t.x + width / 2); y1 = Math.max(y1, t.y + t.fontSize / 2);

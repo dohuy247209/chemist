@@ -590,6 +590,27 @@ body .dg.main.chem-properties {
   cursor: grab;
 }
 
+.canvas-text-input {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  min-width: 84px;
+  height: 1.5em;
+  padding: 1px 6px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--chem-blue);
+  border-radius: 3px;
+  outline: 0;
+  background: var(--chem-panel);
+  color: var(--chem-ink);
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+.canvas-text-input[hidden] {
+  display: none;
+}
+
 #grid path {
   stroke: var(--chem-line);
 }
@@ -859,7 +880,8 @@ body .dg.main.chem-properties {
 }
 
 .propgrid input,
-.propgrid select {
+.propgrid select,
+.propgrid textarea {
   width: 100%;
   min-width: 0;
   padding: 4px;
@@ -867,6 +889,13 @@ body .dg.main.chem-properties {
   border-radius: 3px;
   background: var(--chem-bg);
   color: var(--chem-ink);
+}
+
+.propgrid textarea {
+  box-sizing: border-box;
+  min-height: 58px;
+  resize: vertical;
+  font: inherit;
 }
 
 .propgrid input[type="color"] {

@@ -37,6 +37,10 @@ window.ChemI18n = (() => {
     'Thuộc tính': 'Properties', 'Mã SVG': 'SVG source', 'Cài đặt': 'Settings', 'Bảng điều khiển': 'Dashboard',
     'Đối tượng đang chọn': 'Selected object', 'Chưa chọn gì. Dùng công cụ Chọn (V) để chọn nguyên tử hoặc liên kết.':
       'Nothing selected. Use Select (V) to choose an atom or bond.',
+    'Thành phần phương trình': 'Equation components', 'Chèn mũi tên phản ứng →': 'Insert reaction arrow →',
+    'Chèn mũi tên thuận nghịch ⇌': 'Insert equilibrium arrow ⇌',
+    'Mũi tên được chèn gần tâm khung vẽ; chọn và kéo để di chuyển.':
+      'Arrows are inserted near the canvas center; select and drag to move.',
     'Kiểu vẽ': 'Drawing style', 'Kiểu vẽ mặc định': 'Default drawing style', 'Độ dài liên kết': 'Bond length', 'Độ dày nét': 'Stroke width', 'Cỡ chữ': 'Font size',
     'Lưới mặc định': 'Default grid', 'Vuông': 'Square', 'Tam giác': 'Triangle',
     'Đổi phía nét phụ': 'Swap parallel line side',

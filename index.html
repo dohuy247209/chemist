@@ -138,6 +138,7 @@
             <rect id="gridRect" x="-4000" y="-4000" width="8000" height="8000" fill="url(#grid)"/>
           <g id="viewport"><g id="world"></g><g id="overlay"></g></g>
         </svg>
+        <input id="canvasTextInput" class="canvas-text-input" type="text" autocomplete="off" hidden aria-label="Nhập chú thích">
         <div class="hint" id="hint">Chọn một mẫu ở bên trái rồi nhấn vào khung vẽ</div>
         <div class="zoombar">
           <button data-action="toggle-grid-type" id="gridTypeBtn" title="Chuyển sang lưới tam giác" aria-label="Loại lưới: vuông">▦</button>
@@ -171,10 +172,28 @@
               <h3>Đối tượng đang chọn</h3>
               <div id="propBody"><p class="muted">Chưa chọn gì. Dùng công cụ Chọn (V) để chọn nguyên tử hoặc liên kết.</p></div>
             </section>
+            <section class="chem-property-group">
+              <h3>Thành phần phương trình</h3>
+              <div class="btnrow">
+                <button class="btn" data-action="insert-arrow" type="button">Chèn mũi tên phản ứng →</button>
+                <button class="btn" data-action="insert-equilibrium" type="button">Chèn mũi tên thuận nghịch ⇌</button>
+              </div>
+              <p class="muted">Mũi tên được chèn gần tâm khung vẽ; chọn và kéo để di chuyển.</p>
+            </section>
           </div>
           <div class="tabpane" id="pane-svg">
+            <section class="chem-property-group">
+              <h3>Tùy chọn xuất</h3>
+              <label class="chem-option">Nền <input id="optBg" type="color" value="#ffffff"></label>
+              <label class="chem-option">Nền trong suốt <input id="optTransparent" type="checkbox"></label>
+              <div class="btnrow chem-export-actions">
+                <button class="matter-btn chem-action" data-action="copy-svg">Sao chép SVG</button>
+                <button class="matter-btn chem-action" data-action="export-svg">Tải .svg</button>
+                <button class="matter-btn chem-action" data-action="export-png">Tải .png</button>
+                <button class="matter-btn chem-action" data-action="save-json">Lưu .json</button>
+              </div>
+            </section>
             <div class="btnrow">
-              <button class="matter-btn chem-action" data-action="copy-svg">Sao chép</button>
               <button class="matter-btn chem-action" data-action="refresh-svg">Làm mới</button>
             </div>
             <pre id="svgCode" class="code" spellcheck="false"></pre>
@@ -227,17 +246,6 @@
               <h3>Hiệu ứng shiny</h3>
               <label class="chem-option">Bật shiny <input id="settingsShiny" type="checkbox"></label>
               <label class="chem-option">Độ mạnh gradient <input id="optShinyIntensity" type="range" min="10" max="100" step="5" value="100"><b id="optShinyIntensityV">100%</b></label>
-            </section>
-            <section class="chem-property-group">
-              <h3>Xem trước xuất bản</h3>
-              <label class="chem-option">Nền <input id="optBg" type="color" value="#ffffff"></label>
-              <label class="chem-option">Nền trong suốt <input id="optTransparent" type="checkbox"></label>
-              <div class="btnrow chem-export-actions">
-                <button class="matter-btn chem-action" data-action="copy-svg">Sao chép SVG</button>
-                <button class="matter-btn chem-action" data-action="export-svg">Tải .svg</button>
-                <button class="matter-btn chem-action" data-action="export-png">Tải .png</button>
-                <button class="matter-btn chem-action" data-action="save-json">Lưu .json</button>
-              </div>
             </section>
             <div class="btnrow"><button class="btn" data-action="reset-settings" type="button">Khôi phục cài đặt ban đầu</button></div>
           </div>

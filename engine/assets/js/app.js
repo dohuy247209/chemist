@@ -221,6 +221,17 @@ window.ChemApp = (() => {
     Ed.st.sel = null; Ed.redraw();
     toast(text('Đã tạo khung vẽ mới', 'New drawing created'));
   }
+  function insertArrow(arrowType) {
+    const position = worldCenter();
+    let arrow;
+    M.transact(() => {
+      arrow = M.addText(position.x, position.y, '', +document.getElementById('optFont').value || 20, {
+        type: 'arrow', arrowType, width: 96, above: '', below: '', latex: false
+      });
+    }, 'arrow');
+    Ed.st.sel = { type: 'text', id: arrow.id };
+    Ed.redraw();
+  }
   const actions = {
     new: newDoc,
     open: () => document.getElementById('fileOpen').click(),
@@ -229,6 +240,8 @@ window.ChemApp = (() => {
     'export-png': () => X.exportPNG(),
     'copy-svg': () => X.copySVG(),
     'refresh-svg': () => { X.refreshCodeView(); toast(text('Đã làm mới mã SVG', 'SVG source refreshed')); },
+    'insert-arrow': () => insertArrow('forward'),
+    'insert-equilibrium': () => insertArrow('equilibrium'),
     undo: () => { M.undo(); Ed.redraw(); },
     redo: () => { M.redo(); Ed.redraw(); },
     'select-all': () => Ed.selectAll(),
@@ -281,6 +294,7 @@ window.ChemApp = (() => {
       <ul>
         <li>Draw hydrocarbons, arenes, heterocycles, and functional groups with single, double, triple, wedge, and hashed bonds.</li>
         <li>Template library includes benzene, toluene, naphthalene, pyridine, pyrrole, furan, thiophene, and imidazole.</li>
+        <li>Add reaction and equilibrium arrows with labels, and format text with chemistry-oriented LaTeX scripts.</li>
         <li>Export SVG source, download .svg/.png, and save .json projects — runs offline without a server.</li>
       </ul>
       <p class="muted">Open <code>index.html</code> in any modern browser.</p>` : `
@@ -288,6 +302,7 @@ window.ChemApp = (() => {
       <ul>
         <li>Vẽ hydrocarbon, arene, dị vòng, nhóm chức với đầy đủ liên kết đơn/đôi/ba, nét đậm–nét đứt.</li>
         <li>Thư viện mẫu: benzen, toluen, naftalen, pyridine, pyrrole, furan, thiophene, imidazole…</li>
+        <li>Chèn mũi tên phản ứng/thuận nghịch kèm nhãn; định dạng công thức bằng LaTeX (chỉ số dưới/trên).</li>
         <li>Xuất <b>SVG dạng mã</b>, tải .svg/.png, lưu dự án .json — chạy offline, không cần server.</li>
       </ul>
       <p class="muted">Mở <code>index.html</code> bằng bất kỳ trình duyệt hiện đại nào.</p>`)
@@ -328,7 +343,8 @@ window.ChemApp = (() => {
     if (!body) return;
     const sel = Ed.st.sel;
     if (!sel) {
-      body.innerHTML = `<p class="muted">${text('Chưa chọn gì. Nhấn vào một nguyên tử để chọn và sửa ký hiệu/nhóm ở đây; double-click để sửa nhanh.', 'Nothing selected. Click an atom to edit its element or group here; double-click for quick editing.')}</p>`;
+      body.innerHTML = `<p class="muted">${text('Chưa chọn gì. Nhấn vào một nguyên tử để chọn và sửa ký hiệu/nhóm ở đây; double-click để sửa nhanh.', 'Nothing selected. Click an atom to edit its element or group here; double-click for quick editing.')}</p>
+        `;
       return;
     }
     if (sel.type === 'atom') {
@@ -382,23 +398,72 @@ window.ChemApp = (() => {
           <option value="wedge" ${b.style === 'wedge' ? 'selected' : ''}>${text('Nét đậm (▲)', 'Solid wedge (▲)')}</option>
           <option value="hash" ${b.style === 'hash' ? 'selected' : ''}>${text('Nét đứt (╱)', 'Hashed wedge (╱)')}</option>
         </select>
+        <label>${text('Màu liên kết', 'Bond color')}</label>
+        <input id="pBondColor" type="color" aria-label="${text('Màu liên kết', 'Bond color')}">
         <label>${text('Từ → Đến', 'From → To')}</label><span class="muted">${A ? A.el : '?'} → ${B ? B.el : '?'}</span>
       </div>
       <div class="btnrow">
+        <button class="btn" id="pResetBondColor" type="button">${text('Dùng màu mặc định', 'Reset to default color')}</button>
         ${b.style === 'solid' && (b.order === 2 || b.dbl) ? `<button class="btn" id="pSwapDoubleSide" type="button">${text('Đổi phía nét phụ', 'Swap parallel line side')}</button>` : ''}
         <button class="btn" id="pDelBond">${text('Xóa liên kết', 'Delete bond')}</button>
       </div>`;
       document.getElementById('pOrder').onchange = e => M.transact(() => { b.order = +e.target.value; b.dbl = false; }, 'prop');
       document.getElementById('pStyle').onchange = e => M.transact(() => { b.style = e.target.value; }, 'prop');
+      const bondColorInput = document.getElementById('pBondColor');
+      bondColorInput.value = b.color || Th.palette().ink;
+      bondColorInput.onchange = e => {
+        const value = e.target.value;
+        if (!/^#[0-9a-f]{6}$/i.test(value)) { toast(text('Màu không hợp lệ.', 'Invalid color.')); e.target.value = b.color || Th.palette().ink; return; }
+        if (value !== b.color) M.transact(() => { b.color = value; }, 'bond-color');
+      };
+      document.getElementById('pResetBondColor').onclick = () => {
+        if (b.color) M.transact(() => { delete b.color; }, 'bond-color');
+      };
       const swapDoubleSide = document.getElementById('pSwapDoubleSide');
       if (swapDoubleSide) swapDoubleSide.onclick = () => M.transact(() => { b.dblSide = b.dblSide === 1 ? -1 : 1; }, 'bond-side');
       document.getElementById('pDelBond').onclick = () => actions.delete();
     } else if (sel.type === 'text') {
       const annotation = M.textItem(sel.id);
       if (!annotation) { Ed.st.sel = null; return updateProps(); }
-      body.innerHTML = `<p><b>${text('Chú thích', 'Annotation')}:</b> <span id="pCanvasText"></span></p>
-        <p class="muted">${text('Kéo để di chuyển, nhấp đúp để sửa, Delete để xóa.', 'Drag to move, double-click to edit, or press Delete to remove.')}</p>`;
-      document.getElementById('pCanvasText').textContent = annotation.text;
+      if (annotation.type === 'arrow') {
+        body.innerHTML = `<div class="propgrid">
+          <label>${text('Loại mũi tên', 'Arrow type')}</label>
+          <select id="pArrowType">
+            <option value="forward" ${annotation.arrowType !== 'equilibrium' ? 'selected' : ''}>${text('Phản ứng →', 'Reaction →')}</option>
+            <option value="equilibrium" ${annotation.arrowType === 'equilibrium' ? 'selected' : ''}>${text('Thuận nghịch ⇌', 'Equilibrium ⇌')}</option>
+          </select>
+          <label>${text('Nhãn phía trên', 'Label above')}</label><input id="pArrowAbove" type="text">
+          <label>${text('Nhãn phía dưới', 'Label below')}</label><input id="pArrowBelow" type="text">
+          <label>${text('LaTeX', 'LaTeX')}</label><input id="pTextLatex" type="checkbox">
+        </div>
+        <div class="btnrow"><button class="btn" id="pDeleteText" type="button">${text('Xóa mũi tên', 'Delete arrow')}</button></div>
+        <p class="muted">${text('Kéo mũi tên trên khung vẽ để di chuyển. LaTeX hỗ trợ chỉ số và lệnh như \\\\Delta, \\\\rightarrow.', 'Drag the arrow on the canvas to move it. LaTeX supports scripts and commands such as \\\\Delta and \\\\rightarrow.')}</p>`;
+        const typeInput = document.getElementById('pArrowType');
+        typeInput.onchange = e => M.transact(() => { annotation.arrowType = e.target.value; }, 'arrow');
+        for (const [id, key] of [['pArrowAbove', 'above'], ['pArrowBelow', 'below']]) {
+          const input = document.getElementById(id);
+          input.value = annotation[key] || '';
+          input.onchange = e => M.transact(() => { annotation[key] = e.target.value; }, 'arrow-label');
+        }
+        const latexInput = document.getElementById('pTextLatex');
+        latexInput.checked = annotation.latex === true;
+        latexInput.onchange = e => M.transact(() => { annotation.latex = e.target.checked; }, 'text-latex');
+        document.getElementById('pDeleteText').onclick = () => actions.delete();
+      } else {
+        body.innerHTML = `<div class="propgrid">
+          <label>${text('Nội dung', 'Text')}</label><textarea id="pCanvasText" rows="3"></textarea>
+          <label>${text('LaTeX', 'LaTeX')}</label><input id="pTextLatex" type="checkbox">
+        </div>
+        <div class="btnrow"><button class="btn" id="pDeleteText" type="button">${text('Xóa chú thích', 'Delete text')}</button></div>
+        <p class="muted">${text('Bật LaTeX để dùng chỉ số, ví dụ $CH_3$, hoặc ký hiệu như \\\\rightarrow.', 'Enable LaTeX for scripts, e.g. $CH_3$, or symbols such as \\\\rightarrow.')}</p>`;
+        const content = document.getElementById('pCanvasText');
+        content.value = annotation.text;
+        content.onchange = e => M.transact(() => { annotation.text = e.target.value; }, 'text');
+        const latexInput = document.getElementById('pTextLatex');
+        latexInput.checked = annotation.latex === true;
+        latexInput.onchange = e => M.transact(() => { annotation.latex = e.target.checked; }, 'text-latex');
+        document.getElementById('pDeleteText').onclick = () => actions.delete();
+      }
     } else {
       body.innerHTML = `<p class="muted">${text('Đang chọn', 'Selected')} <b>${sel.ids.length} ${text('nguyên tử', 'atoms')}</b> — ${text('kéo để di chuyển, Del để xóa.', 'drag to move, Del to delete.')}</p>`;
     }
