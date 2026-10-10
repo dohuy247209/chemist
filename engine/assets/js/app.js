@@ -353,6 +353,7 @@ window.ChemApp = (() => {
       body.innerHTML = `<div class="propgrid">
         <label>${text('Ký hiệu / nhóm', 'Element / group')}</label>
         <input id="pEl" type="text" list="atomLabels" maxlength="16" autocomplete="off" aria-label="${text('Ký hiệu nguyên tử hoặc nhóm chức', 'Element or functional group')}">
+        <label>${text('LaTeX cho nhãn', 'LaTeX label')}</label><input id="pAtomLatex" type="checkbox">
         <label>${text('Màu nhãn', 'Label color')}</label>
         <input id="pColor" type="color" aria-label="${text('Màu nguyên tử hoặc nhóm chức', 'Element or group color')}">
         <label>${text('Toạ độ X', 'X coordinate')}</label><input id="pX" type="number" step="1" value="${a.x}">
@@ -368,6 +369,13 @@ window.ChemApp = (() => {
         if (value.length > 16) { toast(text('Tên nguyên tử/nhóm tối đa 16 ký tự.', 'Element or group name must be 16 characters or fewer.')); e.target.value = a.el; return; }
         if (value !== a.el) M.transact(() => { a.el = value; }, 'prop');
       };
+      const latexInput = document.getElementById('pAtomLatex');
+      latexInput.checked = a.latex === true;
+      latexInput.onchange = e => M.transact(() => { a.latex = e.target.checked; }, 'atom-latex');
+      const latexHelp = document.createElement('p');
+      latexHelp.className = 'muted';
+      latexHelp.textContent = text('Dùng CH_3, NH_{2}, N^+ hoặc ký hiệu có dấu $...$.', 'Use CH_3, NH_{2}, N^+, or delimit expressions with $...$.');
+      body.appendChild(latexHelp);
       const colorInput = document.getElementById('pColor');
       colorInput.value = a.color || M.elColor(a.el);
       colorInput.onchange = e => {

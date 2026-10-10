@@ -20,10 +20,14 @@ window.ChemRender = (() => {
     const M = window.ChemModel;
     const shiny = document.getElementById('stage').classList.contains('shiny');
     const t = el('text', { x: a.x, y: a.y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'class': 'atom-label', 'font-family': 'Arial, sans-serif', 'font-size': font, fill: a.color || M.elColor(a.el), stroke: shiny ? 'none' : pal().halo, 'stroke-width': shiny ? 0 : 4, 'paint-order': 'stroke', 'data-aid': a.id }, g);
-    for (const p of labelParts(a.el)) {
+    const parts = a.latex ? textTokens(a.el, true) : labelParts(a.el).map(part => ({ text: part.t, script: part.sub ? 'sub' : null }));
+    for (const p of parts) {
       const ts = el('tspan', {}, t);
-      ts.textContent = p.t;
-      if (p.sub) { ts.setAttribute('font-size', Math.round(font * 0.72)); ts.setAttribute('dy', font * 0.22); }
+      ts.textContent = p.text;
+      if (p.script) {
+        ts.setAttribute('font-size', Math.round(font * 0.7));
+        ts.setAttribute('baseline-shift', p.script === 'sub' ? 'sub' : 'super');
+      }
     }
     return t;
   }
@@ -71,14 +75,16 @@ window.ChemRender = (() => {
     }
     return tokens;
   }
+  function textTokens(value, latex) {
+    if (!latex) return [{ text: value }];
+    if (!value.includes('$')) return latexTokens(value);
+    return value.split(/(\$[^$]*\$)/g).filter(Boolean).flatMap(part =>
+      part[0] === '$' && part[part.length - 1] === '$'
+        ? latexTokens(part.slice(1, -1))
+        : [{ text: part }]);
+  }
   function drawTextContent(element, value, latex, fontSize) {
-    const segments = latex
-      ? value.split(/(\$[^$]*\$)/g).filter(Boolean).flatMap(part =>
-        part[0] === '$' && part[part.length - 1] === '$'
-          ? latexTokens(part.slice(1, -1))
-          : [{ text: part }])
-      : [{ text: value }];
-    for (const segment of segments) {
+    for (const segment of textTokens(value, latex)) {
       const span = el('tspan', {}, element);
       span.textContent = segment.text;
       if (segment.script) {
