@@ -78,6 +78,14 @@ window.ChemModel = (() => {
       );
     });
   }
+  // Khi người dùng chủ động đổi bậc/kiểu một liên kết, liên kết đó không còn
+  // là "cạnh đôi tự động của hệ Kekulé" nữa → gỡ khỏi mọi ring.dblIds để
+  // aromaticDoubleBondIds không tiếp tục tính nó là đôi (tránh đếm sai hóa trị).
+  function detachFromKekule(id) {
+    for (const ring of S.rings) {
+      if (Array.isArray(ring.dblIds)) ring.dblIds = ring.dblIds.filter(x => x !== id);
+    }
+  }
   function cycleBondOrder(id) {
     const existing = bond(id);
     if (!existing) return null;
@@ -88,6 +96,7 @@ window.ChemModel = (() => {
     delete existing.cx;
     delete existing.cy;
     delete existing.dblSide;
+    detachFromKekule(id);
     return existing;
   }
   function setBondType(id, order, style) {
@@ -100,6 +109,7 @@ window.ChemModel = (() => {
     delete existing.cx;
     delete existing.cy;
     delete existing.dblSide;
+    detachFromKekule(id);
     return existing;
   }
   function addRing(cx, cy, r, aromatic) { const g = { id: S.seq++, cx, cy, r, aromatic: !!aromatic }; S.rings.push(g); return g; }
@@ -107,28 +117,62 @@ window.ChemModel = (() => {
   const neighbors = id => S.bonds.filter(b => b.a === id || b.b === id).map(b => b.a === id ? b.b : b.a);
   const degree = id => S.bonds.filter(b => b.a === id || b.b === id).length;
   const bondsOf = id => S.bonds.filter(b => b.a === id || b.b === id);
+  // Hóa trị tối đa cho phép theo nguyên tố/nhóm. Bao gồm cả kim loại nhóm chính
+  // (s/p block, hóa trị cố định rõ ràng) và kim loại chuyển tiếp phổ biến (mức
+  // oxy hóa tối đa thường gặp) để kiểm tra "vượt hóa trị" hoạt động cho cả hai.
   const MAX_VALENCE = Object.freeze({
     H: 1, B: 3, C: 4, N: 3, 'N⁺': 4, 'N⁻': 3, O: 2, 'O⁺': 3, 'O⁻': 1,
     F: 1, Si: 4, P: 5, S: 6, Cl: 1, Se: 6, Br: 1, I: 1,
+    // Kim loại nhóm chính (main-group metals).
+    Li: 1, Na: 1, K: 1, Rb: 1, Cs: 1, Fr: 1,
+    Be: 2, Mg: 2, Ca: 2, Sr: 2, Ba: 2, Ra: 2,
+    Al: 3, Ga: 3, In: 3, Tl: 3,
+    Ge: 4, Sn: 4, Pb: 4,
+    As: 5, Sb: 5, Bi: 5,
+    Te: 6, Po: 6,
+    Zn: 2, Cd: 2, Hg: 2,
+    // Kim loại chuyển tiếp phổ biến (mức oxy hóa tối đa thường gặp).
+    Sc: 3, Ti: 4, V: 5, Cr: 6, Mn: 7, Fe: 6, Co: 5, Ni: 4, Cu: 4,
+    Zr: 4, Nb: 5, Mo: 6, Ru: 8, Rh: 6, Pd: 4, Ag: 3,
+    Hf: 4, Ta: 5, W: 6, Re: 7, Os: 8, Ir: 6, Pt: 6, Au: 5,
+    // Nhóm chức/phân mảnh.
     OH: 1, NH2: 1, SH: 1, COOH: 1, CHO: 1, COOCH3: 1, NO2: 1, CH2OH: 1,
     CN: 1, OCH3: 1, CH3: 1, CH2: 1, NH: 1, NH3: 1, SO3H: 1,
     PO4: 1, SO2: 1, C2H5: 1
   });
-  function valenceViolations() {
-    const aromaticEdges = new Set();
+  // Tập id các liên kết được coi là "đôi" trong cấu trúc Kekulé của hệ thơm.
+  // Dùng dblIds do template/vòng cung cấp thay vì xấp xỉ 1.5 cho mỗi cạnh thơm,
+  // nhờ đó tính đúng hóa trị cho cả vòng đơn lẻ lẫn vòng ghép (fused rings).
+  // Giới hạn mỗi nguyên tử thơm tham gia tối đa 1 cạnh đôi (chuẩn Kekulé hydrocarbon)
+  // để tránh đếm sai khi ghép nhiều vòng khiến dblIds chồng lấn cạnh đôi.
+  function aromaticDoubleBondIds() {
+    const ids = new Set();
+    const perAtom = new Map();
     for (const ring of S.rings) {
-      if (!ring.aromatic || !Array.isArray(ring.atoms) || ring.atoms.length < 3) continue;
-      for (let i = 0; i < ring.atoms.length; i++) {
-        const a = ring.atoms[i], b = ring.atoms[(i + 1) % ring.atoms.length];
-        aromaticEdges.add(a < b ? `${a}:${b}` : `${b}:${a}`);
+      if (!ring.aromatic || !Array.isArray(ring.dblIds)) continue;
+      for (const id of ring.dblIds) {
+        const b = bond(id);
+        if (!b || b.order !== 1 || b.style !== 'solid' || ids.has(id)) continue;
+        const ca = perAtom.get(b.a) || 0;
+        const cb = perAtom.get(b.b) || 0;
+        if (ca >= 1 || cb >= 1) continue;
+        ids.add(id);
+        perAtom.set(b.a, ca + 1);
+        perAtom.set(b.b, cb + 1);
       }
     }
+    return ids;
+  }
+  // Bậc hiệu quả của một liên kết khi kiểm tra hóa trị: 2 nếu là cạnh đôi Kekulé,
+  // ngược lại là order thực (đơn/đôi/ba) do người dùng đặt.
+  function bondValenceOrder(b, aromaticDouble) {
+    return aromaticDouble.has(b.id) ? 2 : Math.max(1, Number(b.order) || 1);
+  }
+  function valenceViolations() {
+    const aromaticDouble = aromaticDoubleBondIds();
     const valence = new Map();
     for (const bond of S.bonds) {
-      const aromatic = aromaticEdges.has(bond.a < bond.b
-        ? `${bond.a}:${bond.b}`
-        : `${bond.b}:${bond.a}`);
-      const order = aromatic ? 1.5 : Math.max(1, Number(bond.order) || 1);
+      const order = bondValenceOrder(bond, aromaticDouble);
       valence.set(bond.a, (valence.get(bond.a) || 0) + order);
       valence.set(bond.b, (valence.get(bond.b) || 0) + order);
     }
@@ -136,6 +180,18 @@ window.ChemModel = (() => {
       .filter(atom => MAX_VALENCE[atom.el] != null && (valence.get(atom.id) || 0) > MAX_VALENCE[atom.el])
       .map(atom => atom.id);
   }
+  // Tổng hóa trị (tổng bậc liên kết, tính cả cạnh đôi Kekulé) của một nguyên tử.
+  function atomValence(id) {
+    const aromaticDouble = aromaticDoubleBondIds();
+    let total = 0;
+    for (const bond of S.bonds) {
+      if (bond.a !== id && bond.b !== id) continue;
+      total += bondValenceOrder(bond, aromaticDouble);
+    }
+    return total;
+  }
+  // Hóa trị tối đa cho phép của một nguyên tố/nhóm (null nếu không kiểm tra).
+  const maxValence = el => (Object.prototype.hasOwnProperty.call(MAX_VALENCE, el) ? MAX_VALENCE[el] : null);
   const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
   function nearAtom(p, tol) { let best = null, bd = tol || 14; for (const a of S.atoms) { const d = dist(p, a); if (d < bd) { bd = d; best = a; } } return best; }
   function nearBond(p, tol) {
@@ -263,5 +319,5 @@ window.ChemModel = (() => {
     }
     return { x: x0 - p, y: y0 - p, w: Math.max(10, x1 - x0 + p * 2), h: Math.max(10, y1 - y0 + p * 2) };
   }
-  return { S, onChange, emit, transact, undo, redo, beginTx, markTx, endTx, canUndo, canRedo, atom, bond, textItem, addAtom, addText, addBond, cycleBondOrder, setBondType, removeAtom, removeBond, removeText, addRing, clearAll, neighbors, degree, bondsOf, valenceViolations, dist, nearAtom, nearBond, component, elColor, isBareCarbon, serialize, deserialize, bbox };
+  return { S, onChange, emit, transact, undo, redo, beginTx, markTx, endTx, canUndo, canRedo, atom, bond, textItem, addAtom, addText, addBond, cycleBondOrder, setBondType, removeAtom, removeBond, removeText, addRing, clearAll, neighbors, degree, bondsOf, valenceViolations, aromaticDoubleBondIds, atomValence, maxValence, dist, nearAtom, nearBond, component, elColor, isBareCarbon, serialize, deserialize, bbox };
 })();

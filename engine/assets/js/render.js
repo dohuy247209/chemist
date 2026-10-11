@@ -140,8 +140,28 @@ window.ChemRender = (() => {
     }
     return result;
   }
+  // Liên kết (A,B) có phải là cạnh của một vòng thơm không.
+  // Ưu tiên dùng ring.atoms (chính xác) khi template cung cấp; nếu không, kiểm tra hình học.
+  function bondInAromaticRing(a, b) {
+    for (const g of window.ChemModel.S.rings) {
+      if (!g.aromatic) continue;
+      if (Array.isArray(g.atoms) && g.atoms.length && g.atoms.includes(a.id) && g.atoms.includes(b.id)) return true;
+      const ra = Math.hypot(a.x - g.cx, a.y - g.cy);
+      const rb = Math.hypot(b.x - g.cx, b.y - g.cy);
+      if (Math.abs(ra - g.r) < 6 && Math.abs(rb - g.r) < 6) return true;
+    }
+    return false;
+  }
   function drawBond(g, b, A, B, o, paint) {
     const M = window.ChemModel;
+    // Cạnh "trước" của Haworth (v.v.): vẽ nét đơn nhưng đậm hơn bình thường.
+    if (b.bold && b.style !== 'wedge' && b.style !== 'hash' && b.order !== 2 && b.order !== 3) {
+      const w = Math.max(3.2, o.stroke * 1.35);
+      const grp = el('g', { 'data-bid': b.id }, g);
+      el('line', { x1: r(A.x), y1: r(A.y), x2: r(B.x), y2: r(B.y), 'class': 'bond', stroke: b.color || paint || pal().ink, 'stroke-width': w, 'stroke-linecap': 'round' }, grp);
+      el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, 'class': 'hit', 'stroke-width': 14, 'data-bid': b.id }, grp);
+      return grp;
+    }
     const w = o.stroke;
     const length = Math.hypot(B.x - A.x, B.y - A.y);
     const [tA, tB] = paint ? [0, 0] : trims(A, B, o.font, length);
@@ -174,7 +194,7 @@ window.ChemRender = (() => {
         const hw = 1 + s * 5.5;
         el('line', Object.assign({ x1: cx + G.px * hw, y1: cy + G.py * hw, x2: cx - G.px * hw, y2: cy - G.py * hw }, main, { 'stroke-width': Math.max(1.6, w - 0.6) }), grp);
       }
-    } else if (b.order === 2 || (b.arom && b.dbl && o.kekule && !o.circle)) {
+    } else if ((b.order === 2 && !(o.circle && bondInAromaticRing(A, B))) || (b.arom && b.dbl && o.kekule && !o.circle)) {
       const side = parallelSide(G, b);
       el('line', Object.assign({ x1: r(G.x1), y1: r(G.y1), x2: r(G.x2), y2: r(G.y2) }, main), grp);
       parallelLine(off, side, availableLength * 0.76, Math.max(1.25, w * 0.72));

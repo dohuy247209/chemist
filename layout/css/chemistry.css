@@ -423,16 +423,6 @@ body {
   color: #ff8177;
 }
 
-#chainLen {
-  width: 42px;
-  border: 1px solid var(--chem-line);
-  border-radius: 3px;
-  padding: 4px;
-  background: var(--chem-row);
-  color: var(--chem-ink);
-  font: inherit;
-}
-
 .chem-workspace {
   position: relative;
   display: grid;
@@ -515,6 +505,32 @@ body .dg.main.chem-properties {
   text-transform: uppercase;
 }
 
+.chem-library .side-sec h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sugar-toggle {
+  padding: 3px 9px;
+  border: 1px solid var(--chem-line);
+  border-radius: 999px;
+  background: var(--chem-field, transparent);
+  color: var(--chem-ink);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .2px;
+  text-transform: none;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.sugar-toggle:hover {
+  background: var(--chem-row-hover);
+  border-color: var(--chem-accent, var(--chem-line));
+}
+
 .chem-library .tpl-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -584,6 +600,20 @@ body .dg.main.chem-properties {
   outline: 0;
   touch-action: none;
   cursor: crosshair;
+  /* Tắt bôi đen văn bản của trình duyệt: khi kéo vùng chọn, nhãn (O, OH…)
+     không còn bị "tô xanh" như text thường trên trang web. */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+#stage *,
+#stage text {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 #stage.panning {
@@ -956,6 +986,35 @@ body .dg.main.chem-properties {
   height: 26px;
   padding: 0;
   cursor: pointer;
+}
+
+/* Cảnh báo hóa trị trong panel thuộc tính. */
+.chem-property-group .valence-warn {
+  margin: 8px 0 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid #eca0a0;
+  background: rgba(236, 160, 160, 0.12);
+  color: #c0432f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chem-property-group .valence-warn-inline {
+  color: #c0432f;
+  font-weight: 700;
+}
+
+/* Nhãn góc xoay mẫu khi đang chọn vị trí đặt (ghost preview). */
+#overlay .rot-label {
+  fill: var(--chem-blue);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--chem-bg);
+  stroke-width: 3.5;
+  stroke-linejoin: round;
 }
 
 .chem-statusbar {

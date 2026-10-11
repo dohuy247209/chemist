@@ -44,29 +44,104 @@ window.ChemTemplates = (() => {
     frag.bonds.push([0, 6]);
     return frag;
   }
-  function carbohydrateFrag(name, ringSize, oxygenIndex, substituents, rotation) {
-    const atoms = [], bonds = [];
-    for (let i = 0; i < ringSize; i++) {
-      const a = ang(i, ringSize, rotation || 0);
-      atoms.push({
-        el: i === oxygenIndex ? 'O' : 'C',
-        dx: Math.cos(a) * R,
-        dy: Math.sin(a) * R
-      });
-      bonds.push([i, (i + 1) % ringSize, 1]);
+  // Định nghĩa đường ở dạng DATA thuần (độc lập layout) để dựng được cả
+  // bản khung phẳng lẫn Haworth. substituents: [chỉ số đỉnh, nhãn, hướng]
+  //   hướng: -1 = lên (ra trước, α), 1 = xuống (ra sau, β).
+  function sugarDef(name, ringSize, oxygenIndex, substituents, rotation) {
+    return { name, ringSize, oxygenIndex, substituents, rotation: rotation || 0 };
+  }
+  // Dựng fragment đường theo layout:
+  //   'flat'    (mặc định, Cách 1): nhóm chức hướng ra ngoài theo bán kính;
+  //             liên kết nối = wedge (lên/ra trước) hoặc hash (xuống/ra sau).
+  //   'haworth' (Cách 2): vòng nghiêng (flatten), cạnh trước đậm, nhóm chức thẳng đứng.
+  function buildSugar(def, layout) {
+    const n = def.ringSize, rot = def.rotation;
+    const haworth = layout === 'haworth';
+    // Haworth: vòng nghiêng vừa phải. FLAT quá nhỏ (<0.6) khiến nhóm chức
+    // thẳng đứng (dài R) trùng tọa độ đỉnh đối diện → nhóm bị đè/mất.
+    const FLAT = 0.8;
+    const atoms = [], bonds = [], verts = [];
+    for (let i = 0; i < n; i++) {
+      const a = ang(i, n, rot);
+      const vx = Math.cos(a) * R;
+      const vy = Math.sin(a) * R * (haworth ? FLAT : 1);
+      verts.push({ x: vx, y: vy });
+      atoms.push({ el: i === def.oxygenIndex ? 'O' : 'C', dx: vx, dy: vy });
     }
-    for (const [atomIndex, el, side] of substituents) {
-      const vertex = atoms[atomIndex];
-      const groupIndex = atoms.length;
-      atoms.push({ el, dx: vertex.dx, dy: vertex.dy + side * R });
-      bonds.push([atomIndex, groupIndex, 1]);
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const midY = (verts[i].y + verts[j].y) / 2;
+      // Ở Haworth, cạnh nằm ở nửa dưới vòng là "cạnh trước" (gần người xem) → vẽ đậm.
+      const front = haworth && midY > 2;
+      bonds.push(front ? [i, j, 1, 'solid', { bold: true }] : [i, j, 1]);
+    }
+    // Nhóm các nhóm chức theo đỉnh để xử lý trường hợp MỘT đỉnh có nhiều nhóm
+    // (ví dụ fructose: C1 có cả –CH2OH và –OH). Nếu để chồng sẽ trùng toạ độ → mất nhóm.
+    const byVertex = new Map();
+    for (const [atomIndex, el, side] of def.substituents) {
+      if (!byVertex.has(atomIndex)) byVertex.set(atomIndex, []);
+      byVertex.get(atomIndex).push({ el, side });
+    }
+    for (const [atomIndex, list] of byVertex) {
+      const v = verts[atomIndex];
+      const k = list.length;
+      list.forEach((item, m) => {
+        const { el, side } = item;
+        const groupIndex = atoms.length;
+        if (haworth) {
+          // Thẳng đứng; nếu nhiều nhóm cùng đỉnh CÙNG hướng thì lệch ngang để tách.
+          const sameDir = list.filter(x => (x.side < 0) === (side < 0)).length;
+          const dirIdx = list.slice(0, m).filter(x => (x.side < 0) === (side < 0)).length;
+          const xOff = sameDir > 1 ? (dirIdx - (sameDir - 1) / 2) * R * 0.95 : 0;
+          atoms.push({ el, dx: v.x + xOff, dy: v.y + (side < 0 ? -R : R) });
+          bonds.push([atomIndex, groupIndex, 1]);
+        } else {
+          // Hướng ra ngoài theo bán kính; nhiều nhóm cùng đỉnh thì chia đều góc.
+          const baseAng = Math.atan2(v.y, v.x);
+          const spread = (k > 1) ? (m - (k - 1) / 2) * (Math.PI / 4) : 0;
+          const rad = R * 1.9;
+          atoms.push({ el, dx: Math.cos(baseAng + spread) * rad, dy: Math.sin(baseAng + spread) * rad });
+          bonds.push([atomIndex, groupIndex, 1, side < 0 ? 'wedge' : 'hash']);
+        }
+      });
     }
     return {
-      name, group: 'sugar', atoms, bonds, fusible: false,
-      ring: { cx: 0, cy: 0, r: R, aromatic: false, vertices: Array.from({ length: ringSize }, (_, i) => i) }
+      name: def.name, group: 'sugar', atoms, bonds, fusible: false,
+      sugar: def, layout: haworth ? 'haworth' : 'flat',
+      ring: { cx: 0, cy: 0, r: R, aromatic: false, vertices: Array.from({ length: n }, (_, i) => i) }
     };
   }
 
+  const SUGARS = [
+    sugarDef('Glucose', 6, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', 1], [5, 'CH2OH', -1]], Math.PI / 6),
+    sugarDef('Galactose', 6, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', -1], [5, 'CH2OH', -1]], Math.PI / 6),
+    sugarDef('Fructose', 5, 0, [[1, 'CH2OH', -1], [1, 'OH', 1], [2, 'OH', -1], [3, 'OH', 1], [4, 'CH2OH', 1]]),
+    sugarDef('Ribose', 5, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'CH2OH', 1]])
+  ];
+
+  // Các dạng cấu hình (anomer α/β) cho mỗi đường. Mỗi dạng là danh sách
+  // substituents đầy đủ [đỉnh, nhãn, hướng]; hướng: -1 = lên (ra trước), 1 = xuống (ra sau).
+  // Điểm khác biệt α/β nằm ở nhóm –OH tại carbon anomeric (đỉnh 1, cạnh oxy vòng).
+  const SUGAR_VARIANTS = {
+    'Glucose': [
+      { id: 'alpha', vi: 'α-D-Glucose', en: 'α-D-Glucose', substituents: [[1, 'OH', 1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', 1], [5, 'CH2OH', -1]] },
+      { id: 'beta', vi: 'β-D-Glucose', en: 'β-D-Glucose', substituents: [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', 1], [5, 'CH2OH', -1]] }
+    ],
+    'Galactose': [
+      { id: 'alpha', vi: 'α-D-Galactose', en: 'α-D-Galactose', substituents: [[1, 'OH', 1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', -1], [5, 'CH2OH', -1]] },
+      { id: 'beta', vi: 'β-D-Galactose', en: 'β-D-Galactose', substituents: [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', -1], [5, 'CH2OH', -1]] }
+    ],
+    'Fructose': [
+      { id: 'alpha', vi: 'α-D-Fructose', en: 'α-D-Fructose', substituents: [[1, 'CH2OH', -1], [1, 'OH', -1], [2, 'OH', -1], [3, 'OH', 1], [4, 'CH2OH', 1]] },
+      { id: 'beta', vi: 'β-D-Fructose', en: 'β-D-Fructose', substituents: [[1, 'CH2OH', -1], [1, 'OH', 1], [2, 'OH', -1], [3, 'OH', 1], [4, 'CH2OH', 1]] }
+    ],
+    'Ribose': [
+      { id: 'alpha', vi: 'α-D-Ribose', en: 'α-D-Ribose', substituents: [[1, 'OH', 1], [2, 'OH', 1], [3, 'OH', -1], [4, 'CH2OH', 1]] },
+      { id: 'beta', vi: 'β-D-Ribose', en: 'β-D-Ribose', substituents: [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'CH2OH', 1]] }
+    ]
+  };
+
+  let sugarLayout = 'flat'; // 'flat' (khung phẳng + wedge/hash) hoặc 'haworth'
   const FRAGS = [
     { name: 'Cyclopropan', group: 'sat', snapVertices: true,
       atoms: [{ el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 6 }, { el: 'C', dx: R / 2, dy: -R * Math.sqrt(3) / 6 }, { el: 'C', dx: 0, dy: R * Math.sqrt(3) / 3 }],
@@ -106,10 +181,7 @@ window.ChemTemplates = (() => {
     funcFrag('–I', [{ el: 'I', dx: 0, dy: 0 }], []),
     funcFrag('–CH3', [{ el: 'C', dx: 0, dy: 0 }], []),
     // ---- Đường đơn ----
-    carbohydrateFrag('Glucose', 6, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', 1], [5, 'CH2OH', -1]], Math.PI / 6),
-    carbohydrateFrag('Galactose', 6, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', -1], [5, 'CH2OH', -1]], Math.PI / 6),
-    carbohydrateFrag('Fructose', 5, 0, [[1, 'CH2OH', -1], [1, 'OH', 1], [2, 'OH', -1], [3, 'OH', 1], [4, 'CH2OH', 1]]),
-    carbohydrateFrag('Ribose', 5, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'CH2OH', 1]]),
+    ...SUGARS.map(s => buildSugar(s, sugarLayout)),
     // ---- Phân tử mẫu ----
     chainFrag('Etan (C2)', 2),
     chainFrag('Propan (C3)', 3),
@@ -122,12 +194,30 @@ window.ChemTemplates = (() => {
     { name: 'Etyne', group: 'mol', atoms: [{ el: 'C', dx: -R, dy: 0 }, { el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }], bonds: [[0, 1, 3], [1, 2, 3]] }
   ];
 
+  // Đổi layout hiển thị cho nhóm đường và dựng lại các fragment sugar tại chỗ
+  // trong FRAGS (giữ nguyên vị trí → byName vẫn tìm đúng). Trả về layout đang dùng.
+  function setSugarLayout(layout) {
+    sugarLayout = (layout === 'haworth') ? 'haworth' : 'flat';
+    for (let i = 0; i < FRAGS.length; i++) {
+      if (FRAGS[i].sugar) FRAGS[i] = buildSugar(FRAGS[i].sugar, sugarLayout);
+    }
+    return sugarLayout;
+  }
+  const getSugarLayout = () => sugarLayout;
   const byName = n => FRAGS.find(f => f.name === n);
+  // Danh sách dạng cấu hình (α/β…) của một đường, kèm def gốc để dựng lại.
+  const sugarVariants = name => (SUGAR_VARIANTS[name] || []).map(v => Object.assign({}, v, {
+    def: SUGARS.find(s => s.name === name)
+  })).filter(v => v.def);
   // Ảnh thu nhỏ cho sidebar — tự dựng từ fragment.
-  function thumb(frag) {
+  // rotatePreview: mặc định (null) = tự xoay 90° nhóm "sugar" cho sidebar.
+  // Truyền false để vẽ đúng hướng gốc (dùng cho ghost trên khung vẽ).
+  function thumb(frag, rotatePreviewOverride) {
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    const rotatePreview = frag.group === 'sugar';
+    const rotatePreview = rotatePreviewOverride != null
+      ? rotatePreviewOverride
+      : frag.group === 'sugar';
     const previewPoints = frag.atoms.map(atom => rotatePreview
       ? { x: -atom.dy, y: atom.dx }
       : { x: atom.dx, y: atom.dy });
@@ -148,12 +238,32 @@ window.ChemTemplates = (() => {
       if (!A || !B) continue;
       const dx = B.dx - A.dx, dy = B.dy - A.dy, L = Math.hypot(dx, dy) || 1;
       const px = -dy / L * 1.6, py = dx / L * 1.6;
+      const style = bd[3], extra = bd[4] || {};
+      const lw = extra.bold ? 3.2 : 1.6;
       const add = (ox, oy) => drawing.appendChild(mk('line', {
         x1: (A.dx + ox + dx * .12).toFixed(1), y1: (A.dy + oy + dy * .12).toFixed(1),
         x2: (B.dx + ox - dx * .12).toFixed(1), y2: (B.dy + oy - dy * .12).toFixed(1),
-        stroke: ink, 'stroke-width': 1.6, 'stroke-linecap': 'round'
+        stroke: ink, 'stroke-width': lw, 'stroke-linecap': 'round'
       }));
-      if (bd[2] === 3) { add(-px * 2, -py * 2); add(0, 0); add(px * 2, py * 2); }
+      if (style === 'wedge') {
+        // Hình tam giác: mỏng ở A, rộng ở B (nét đậm hướng ra trước).
+        const w0 = 0.4, w1 = 3.0;
+        const pts = `${A.dx + px * w0},${A.dy + py * w0} ${B.dx + px * w1},${B.dy + py * w1} ${B.dx - px * w1},${B.dy - py * w1} ${A.dx - px * w0},${A.dy - py * w0}`;
+        drawing.appendChild(mk('polygon', { points: pts, fill: ink, stroke: 'none' }));
+      } else if (style === 'hash') {
+        // Nét gạch đứt đều dần về phía B (hướng ra sau).
+        const N = 6;
+        for (let i = 1; i <= N; i++) {
+          const s = 0.12 + (i / (N + 1)) * 0.76;
+          const cx = A.dx + dx * s, cy = A.dy + dy * s;
+          const hw = 0.5 + s * 2.6;
+          drawing.appendChild(mk('line', {
+            x1: (cx + px * hw).toFixed(1), y1: (cy + py * hw).toFixed(1),
+            x2: (cx - px * hw).toFixed(1), y2: (cy - py * hw).toFixed(1),
+            stroke: ink, 'stroke-width': 1.8, 'stroke-linecap': 'round'
+          }));
+        }
+      } else if (bd[2] === 3) { add(-px * 2, -py * 2); add(0, 0); add(px * 2, py * 2); }
       else if (bd[2] === 2) { add(-px, -py); add(px, py); }
       else add(0, 0);
     }
@@ -167,6 +277,15 @@ window.ChemTemplates = (() => {
       const t = mk('text', { x: a.dx, y: a.dy + 3.6, 'text-anchor': 'middle', 'font-size': 11, 'font-family': 'Arial, sans-serif', fill: col(a.el) });
       t.textContent = a.el; drawing.appendChild(t);
     });
+    if (rotatePreview) {
+      // Nhãn giữ ngang như kết quả vẽ thật — không xoay theo bản xem trước.
+      const labels = drawing.querySelectorAll('text');
+      for (let i = 0; i < labels.length; i++) {
+        const label = labels[i];
+        const x = label.getAttribute('x'), y = label.getAttribute('y');
+        if (x != null && y != null) label.setAttribute('transform', `rotate(-90 ${x} ${y})`);
+      }
+    }
     svg.appendChild(drawing);
     return svg;
   }
@@ -191,5 +310,5 @@ window.ChemTemplates = (() => {
     }
   }
 
-  return { FRAGS, byName, thumb, renderLibraries, R, D };
+  return { FRAGS, byName, thumb, renderLibraries, setSugarLayout, getSugarLayout, sugarVariants, buildSugar, R, D };
 })();

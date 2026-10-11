@@ -149,6 +149,16 @@ window.ChemApp = (() => {
       if (input) input.value = Th.elColor(label);
     });
   }
+  // Đồng bộ panel cài đặt lưới với trạng thái thật của editor — gọi khi người
+  // dùng đổi lưới/bắt điểm bằng nút toolbar hoặc phím tắt (G/T/Y) thay vì
+  // qua panel, để panel và localStorage luôn phản ánh đúng trạng thái hiện tại.
+  function syncGridSettingsPanel() {
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+    set('settingsGrid', Ed.st.grid ? 'enabled' : 'disabled');
+    set('settingsSnap', Ed.st.snap ? 'enabled' : 'disabled');
+    set('settingsGridType', Ed.st.gridType);
+    set('settingsGridOrientation', Ed.st.gridOrientation);
+  }
   function syncShinyControls() {
     const enabled = document.getElementById('stage').classList.contains('shiny');
     const setting = document.getElementById('settingsShiny');
@@ -426,6 +436,7 @@ window.ChemApp = (() => {
     if (sel.type === 'atom') {
       const a = M.atom(sel.id);
       if (!a) { Ed.st.sel = null; return updateProps(); }
+      const isInvalidValence = M.valenceViolations().includes(a.id);
       body.innerHTML = `<div class="propgrid">
         <label>${text('Ký hiệu / nhóm', 'Element / group')}</label>
         <input id="pEl" type="text" list="atomLabels" maxlength="16" autocomplete="off" aria-label="${text('Ký hiệu nguyên tử hoặc nhóm chức', 'Element or functional group')}">
@@ -438,6 +449,7 @@ window.ChemApp = (() => {
         <label>${text('Toạ độ X', 'X coordinate')}</label><input id="pX" type="number" step="1" value="${a.x}">
         <label>${text('Toạ độ Y', 'Y coordinate')}</label><input id="pY" type="number" step="1" value="${a.y}">
         <label>${text('Bậc', 'Degree')}</label><span class="muted">${M.degree(a.id)} ${text('liên kết', 'bonds')}</span>
+        <label>${text('Hóa trị', 'Valence')}</label><span class="${isInvalidValence ? 'valence-warn-inline' : 'muted'}">${M.atomValence(a.id)}</span>
       </div>
       `;
       const elInput = document.getElementById('pEl');
@@ -464,16 +476,52 @@ window.ChemApp = (() => {
       });
       document.getElementById('pX').onchange = e => M.transact(() => { a.x = +e.target.value; }, 'prop');
       document.getElementById('pY').onchange = e => M.transact(() => { a.y = +e.target.value; }, 'prop');
+      // Nếu nguyên tử thuộc một phân tử đường → hiện bộ chọn cấu hình α/β (anomer).
+      if (a.sugar && a.sugar.name) {
+        const variants = T.sugarVariants(a.sugar.name);
+        if (variants.length) {
+          const wrap = document.createElement('div');
+          wrap.className = 'chem-property-group';
+          const current = a.sugar.anomer;
+          wrap.innerHTML = `<h3>${text('Cấu hình đường', 'Sugar configuration')} — ${text(a.sugar.name, window.ChemI18n ? window.ChemI18n.name(a.sugar.name) : a.sugar.name)}</h3>
+            <div class="btnrow sugar-anomer-row">
+              ${variants.map(v => `<button class="btn${current === v.id ? ' primary' : ''}" data-anomer="${v.id}" type="button">${text(v.vi, v.en)}</button>`).join('')}
+            </div>
+            <p class="muted">${text('Bấm để dựng lại phân tử theo dạng cấu hình đã chọn (α/β).', 'Click to rebuild the molecule in the selected configuration (α/β).')}</p>`;
+          body.appendChild(wrap);
+          wrap.querySelectorAll('[data-anomer]').forEach(btn => {
+            btn.onclick = () => {
+              const chosen = variants.find(v => v.id === btn.dataset.anomer);
+              const newId = Ed.applySugarAnomer(sel.id, btn.dataset.anomer);
+              if (newId != null) {
+                toast(text('Đã chuyển sang ' + chosen.vi + '.', 'Switched to ' + chosen.en + '.'));
+                Ed.st.sel = { type: 'atom', id: newId };
+                Ed.redraw();
+                updateProps();
+              } else {
+                toast(text('Không thể đổi cấu hình đường.', 'Could not change the sugar configuration.'));
+              }
+            };
+          });
+        }
+      }
     } else if (sel.type === 'bond') {
       const b = M.bond(sel.id);
       if (!b) { Ed.st.sel = null; return updateProps(); }
       const A = M.atom(b.a), B = M.atom(b.b);
+      const aromaticDouble = M.aromaticDoubleBondIds();
+      const isAromaticDouble = aromaticDouble.has(b.id);
+      const isDoubleBond = isAromaticDouble || b.order === 2 || b.dbl;
+      const aromaticNote = isAromaticDouble
+        ? `<p class="muted">${text('Liên kết đôi thuộc hệ thơm (đang hiển thị dạng Kekulé).', 'Double bond part of an aromatic system (shown in Kekulé form).')}</p>`
+        : '';
       body.innerHTML = `<div class="propgrid">
         <label>${text('Loại liên kết', 'Bond order')}</label>
         <select id="pOrder">
-          <option value="1" ${b.order === 1 ? 'selected' : ''}>${text('Đơn', 'Single')}</option>
-          <option value="2" ${b.order === 2 ? 'selected' : ''}>${text('Đôi', 'Double')}</option>
-          <option value="3" ${b.order === 3 ? 'selected' : ''}>${text('Ba', 'Triple')}</option>
+          ${isAromaticDouble ? `<option value="aromatic" selected>${text('Thơm (đôi/Kekulé)', 'Aromatic (double/Kekulé)')}</option>` : ''}
+          <option value="1" ${!isAromaticDouble && b.order === 1 ? 'selected' : ''}>${text('Đơn', 'Single')}</option>
+          <option value="2" ${!isAromaticDouble && b.order === 2 ? 'selected' : ''}>${text('Đôi', 'Double')}</option>
+          <option value="3" ${!isAromaticDouble && b.order === 3 ? 'selected' : ''}>${text('Ba', 'Triple')}</option>
         </select>
         <label>${text('Kiểu nét', 'Bond style')}</label>
         <select id="pStyle">
@@ -488,11 +536,25 @@ window.ChemApp = (() => {
         <input id="pBondColorCustom" type="color" hidden aria-label="${text('Màu tùy chỉnh', 'Custom color')}">
         <label>${text('Từ → Đến', 'From → To')}</label><span class="muted">${A ? A.el : '?'} → ${B ? B.el : '?'}</span>
       </div>
+      ${aromaticNote}
       <div class="btnrow">
-        ${b.style === 'solid' && (b.order === 2 || b.dbl) ? `<button class="btn" id="pSwapDoubleSide" type="button">${text('Đổi phía nét phụ', 'Swap parallel line side')}</button>` : ''}
+        ${b.style === 'solid' && isDoubleBond ? `<button class="btn" id="pSwapDoubleSide" type="button">${text('Đổi phía nét phụ', 'Swap parallel line side')}</button>` : ''}
         <button class="btn" id="pDelBond">${text('Xóa liên kết', 'Delete bond')}</button>
       </div>`;
-      document.getElementById('pOrder').onchange = e => M.transact(() => { b.order = +e.target.value; b.dbl = false; }, 'prop');
+      document.getElementById('pOrder').onchange = e => {
+        const value = e.target.value;
+        if (value === 'aromatic') return; // giữ nguyên cấu trúc Kekulé của hệ thơm
+        M.transact(() => {
+          // Gỡ liên kết khỏi cấu trúc Kekulé của mọi vòng để bậc do người dùng đặt có hiệu lực.
+          for (const ring of M.S.rings) {
+            if (Array.isArray(ring.dblIds)) ring.dblIds = ring.dblIds.filter(x => x !== b.id);
+          }
+          b.order = +value;
+          b.dbl = false;
+          b.arom = false;
+          b.dblSide = undefined;
+        }, 'prop');
+      };
       document.getElementById('pStyle').onchange = e => M.transact(() => { b.style = e.target.value; }, 'prop');
       bindColorControls('pBondColor', 'pBondColorCustom', b.color || null, Th.palette().ink, value => {
         if (value === b.color) return;
@@ -594,22 +656,65 @@ window.ChemApp = (() => {
   }
   function refreshLanguage() {
     updateProps();
+    updateSugarBtn();
     Ed.updateGrid();
     Ed.redraw();
+  }
+  // ---------- Chuyển kiểu vẽ đường (khung phẳng ↔ Haworth) ----------
+  function sugarBtnLabel(layout) {
+    return layout === 'haworth'
+      ? text('↻ Haworth', '↻ Haworth')
+      : text('↻ Khung phẳng', '↻ Flat skeleton');
+  }
+  function updateSugarBtn(layout) {
+    const btn = document.getElementById('sugarLayoutBtn');
+    if (btn) {
+      const l = layout != null ? layout : T.getSugarLayout();
+      btn.textContent = sugarBtnLabel(l);
+      btn.title = text(
+        l === 'haworth' ? 'Đang dùng công thức Haworth — bấm để chuyển sang khung phẳng' : 'Đang dùng khung phẳng (wedge/hash) — bấm để chuyển sang Haworth',
+        l === 'haworth' ? 'Using Haworth projection — click to switch to flat skeleton' : 'Using flat skeleton (wedge/hash) — click to switch to Haworth'
+      );
+    }
+  }
+  function toggleSugarLayout() {
+    const next = T.getSugarLayout() === 'haworth' ? 'flat' : 'haworth';
+    T.setSugarLayout(next);
+    T.renderLibraries(document.getElementById('tplSearch').value || '');
+    updateSugarBtn(next);
+    // Nếu đang chọn một mẫu đường, cập nhật lại ghost theo layout mới.
+    if (Ed.st && Ed.st.tpl) Ed.redraw();
+    toast(next === 'haworth'
+      ? text('Đường sẽ vẽ theo công thức Haworth (vòng nghiêng, nhóm chức thẳng đứng).', 'Sugars will use the Haworth projection (tilted ring, vertical substituents).')
+      : text('Đường sẽ vẽ theo khung phẳng (vòng đều, nhóm chức hướng ra ngoài + wedge/hash).', 'Sugars will use the flat skeleton (regular ring, substituents pointing out + wedge/hash).'));
   }
   // ---------- Nối sự kiện ----------
   function init() {
     restoreSettings();
     const restoredDraft = restoreDraft();
     T.renderLibraries('');
+    updateSugarBtn(T.getSugarLayout());
     // Cập nhật panel thuộc tính + nút undo mỗi lần redraw (khi selection đổi).
     let lastSelKey = '';
     Ed.st.onAfter = () => {
       updateUndoBtns();
       const key = JSON.stringify(Ed.st.sel);
-      if (key !== lastSelKey) { lastSelKey = key; updateProps(); }
+      if (key !== lastSelKey) {
+        lastSelKey = key;
+        updateProps();
+        // Cảnh báo khi người dùng chọn một nguyên tử đang vượt hóa trị cho phép.
+        const sel = Ed.st.sel;
+        if (sel && sel.type === 'atom' && M.valenceViolations().includes(sel.id)) {
+          const a = M.atom(sel.id);
+          if (a) toast(text(`⚠ ${a.el} vượt hóa trị cho phép (${M.atomValence(a.id)}/${M.maxValence(a.el)}).`, `⚠ ${a.el} exceeds its allowed valence (${M.atomValence(a.id)}/${M.maxValence(a.el)}).`));
+        }
+      }
     };
     Ed.init();
+    // Lưu localStorage + đồng bộ panel mỗi khi đổi lưới/bắt điểm bằng nút
+    // toolbar hoặc phím tắt (G/T/Y, bắt điểm) — trước đây các thao tác này
+    // không gọi saveSettings nên cài đặt lưới bị mất sau khi tải lại trang.
+    Ed.setSettingsObserver(() => { syncGridSettingsPanel(); saveSettings(); });
     if (restoredDraft) Ed.fitView();
     updateProps(); updateUndoBtns();
     M.onChange(() => { persistDraft(); updateProps(); updateUndoBtns(); });
@@ -623,6 +728,8 @@ window.ChemApp = (() => {
       if (bb) { Ed.setBond(+bb.dataset.order, bb.dataset.style); return; }
       const atom = e.target.closest('.atom');
       if (atom) { Ed.setElement(atom.dataset.el); return; }
+      const sugarBtn = e.target.closest('#sugarLayoutBtn');
+      if (sugarBtn) { toggleSugarLayout(); return; }
       const tpl = e.target.closest('.tpl');
       if (tpl) { Ed.setTemplate(tpl.dataset.frag); return; }
       const tab = e.target.closest('.tab');
