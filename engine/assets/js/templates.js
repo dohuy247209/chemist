@@ -177,7 +177,7 @@ window.ChemTemplates = (() => {
     funcFrag('–CHO', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'H', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
     funcFrag('–COOH', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'OH', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
     // –COOCH3: methyl xoay để góc C–O–C = 120° (bản cũ gần như thẳng 150°).
-    funcFrag('–COOCH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: R + R * Math.sqrt(3) / 2, dy: R * Math.sqrt(3) / 2 - R / 2 }], [[0, 1, 2], [0, 2], [2, 3]]),
+    funcFrag('–COOCH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: R * 1.5, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2], [2, 3]]),
     funcFrag('–NO2', [{ el: 'N⁺', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O⁻', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
     funcFrag('–CN', [{ el: 'C', dx: 0, dy: 0 }, { el: 'N', dx: R, dy: 0 }], [[0, 1, 3]]),
     funcFrag('–F', [{ el: 'F', dx: 0, dy: 0 }], []),
@@ -193,7 +193,7 @@ window.ChemTemplates = (() => {
     chainFrag('Butan (C4)', 4),
     chainFrag('Pentan (C5)', 5),
     // Etanol: zig-zag C–C–O 120°, O–H gấp ~109°; mọi bond = R (bản cũ đặt thẳng hàng 180°).
-    { name: 'Etanol', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.5, dy: D / 2 }, { el: 'H', dx: R * 2.26, dy: R * .215 }], bonds: [[0, 1], [1, 2], [2, 3]] },
+    { name: 'Etanol', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.5, dy: D / 2 }, { el: 'H', dx: R * 2.48, dy: R * .68 }], bonds: [[0, 1], [1, 2], [2, 3]] },
     { name: 'Axit axetic', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.5, dy: -R * Math.sqrt(3) / 2 }, { el: 'OH', dx: R * 1.5, dy: R * Math.sqrt(3) / 2 }], bonds: [[0, 1], [1, 2, 2], [1, 3]] },
     { name: 'Aceton', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'O', dx: R, dy: 0 }], bonds: [[0, 1], [0, 2], [0, 3, 2]] },
     { name: 'Ethen', group: 'mol', atoms: [{ el: 'C', dx: -R / 2, dy: 0 }, { el: 'C', dx: R / 2, dy: 0 }], bonds: [[0, 1, 2]] },
