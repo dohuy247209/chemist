@@ -82,7 +82,7 @@ window.ChemExport = (() => {
     document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
   }
-  function exportSVG() { const { code } = standaloneSVG(); download('cong-thuc.svg', code, 'image/svg+xml'); return code; }
+  function exportSVG() { const { code } = standaloneSVG(); download('chemistry.svg', code, 'image/svg+xml'); return code; }
   function copySVG() {
     const { code } = standaloneSVG();
     const done = () => window.ChemApp.toast('Đã sao chép mã SVG vào clipboard ✓');
@@ -95,7 +95,7 @@ window.ChemExport = (() => {
     renderPNGBlob(scale).then(blob => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.download = 'cong-thuc.png';
+      a.download = 'chemistry.png';
       a.href = url;
       document.body.appendChild(a);
       a.click();
@@ -124,7 +124,7 @@ window.ChemExport = (() => {
       notify('Không thể sao chép ảnh. Hãy kiểm tra quyền clipboard của trình duyệt.', 'Unable to copy the image. Check the browser clipboard permission.');
     }
   }
-  function saveJSON() { download('phan-tu.json', window.ChemModel.serialize(), 'application/json'); }
+  function saveJSON() { download('chemistry.json', window.ChemModel.serialize(), 'application/json'); }
   function refreshCodeView() {
     const pane = document.getElementById('pane-svg');
     if (pane && !pane.classList.contains('active')) return; // chỉ cập nhật khi tab Mã SVG đang mở
