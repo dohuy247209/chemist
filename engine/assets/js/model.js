@@ -143,22 +143,18 @@ window.ChemModel = (() => {
   // Tập id các liên kết được coi là "đôi" trong cấu trúc Kekulé của hệ thơm.
   // Dùng dblIds do template/vòng cung cấp thay vì xấp xỉ 1.5 cho mỗi cạnh thơm,
   // nhờ đó tính đúng hóa trị cho cả vòng đơn lẻ lẫn vòng ghép (fused rings).
-  // Giới hạn mỗi nguyên tử thơm tham gia tối đa 1 cạnh đôi (chuẩn Kekulé hydrocarbon)
-  // để tránh đếm sai khi ghép nhiều vòng khiến dblIds chồng lấn cạnh đôi.
+  // KHÔNG giới hạn mỗi nguyên tử chỉ 1 cạnh đôi: phải đếm đúng những gì renderer vẽ
+  // (mọi dblIds đều vẽ nét đôi). Nhờ vậy cấu trúc ghép sai — ví dụ 2 vòng Benzen
+  // dính cạnh chung với 2 pha Kekulé độc lập khiến carbon vòng ghép hóa trị 5 —
+  // sẽ bị cảnh báo thay vì bị "ẩn" hóa trị xuống 4.
   function aromaticDoubleBondIds() {
     const ids = new Set();
-    const perAtom = new Map();
     for (const ring of S.rings) {
       if (!ring.aromatic || !Array.isArray(ring.dblIds)) continue;
       for (const id of ring.dblIds) {
         const b = bond(id);
         if (!b || b.order !== 1 || b.style !== 'solid' || ids.has(id)) continue;
-        const ca = perAtom.get(b.a) || 0;
-        const cb = perAtom.get(b.b) || 0;
-        if (ca >= 1 || cb >= 1) continue;
         ids.add(id);
-        perAtom.set(b.a, ca + 1);
-        perAtom.set(b.b, cb + 1);
       }
     }
     return ids;
