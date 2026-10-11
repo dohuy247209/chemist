@@ -28,7 +28,7 @@ window.ChemI18n = (() => {
     'Xoay cấu trúc đang chọn 15°; khi chọn mẫu, xoay mẫu theo bước lưới (R)': 'Rotate the selected atom branch or ring by 15°; rotate a template by one grid step (R)',
     'Thư viện mẫu': 'Template library', 'Lọc mẫu…': 'Filter templates…', 'Vòng no': 'Saturated rings',
     'Vòng thơm (arene)': 'Aromatic rings (arenes)', 'Dị vòng thơm': 'Aromatic heterocycles',
-    'Nhóm chức': 'Functional groups', 'Phân tử mẫu': 'Molecule templates',
+    'Nhóm chức': 'Functional groups', 'Đường đơn': 'Simple sugars', 'Phân tử mẫu': 'Molecule templates',
     '💡 Chọn mẫu rồi nhấn lên khung vẽ. Đặt vòng mới gần một cạnh của vòng sẵn có để ghép chung cạnh; chọn cấu trúc rồi dùng ↶ / ↻ hoặc R để xoay.':
       '💡 Select a template, then click the canvas to place it. Place a ring near an existing ring edge to fuse them; select a structure and use ↶ / ↻ or R to rotate.',
     'Khung vẽ công thức': 'Molecular structure canvas', 'Loại lưới: vuông': 'Grid type: square',
@@ -54,7 +54,10 @@ window.ChemI18n = (() => {
     'Áp dụng cho nhãn mới nếu chưa đặt màu riêng trong Thuộc tính.': 'Used for new labels unless overridden in Properties.',
     'Khôi phục màu nhãn mặc định': 'Reset default label colors', 'Khôi phục cài đặt ban đầu': 'Reset settings to defaults',
     'Hiện lưới': 'Show grid', 'Bắt điểm vào lưới': 'Snap to grid', 'Loại lưới': 'Grid type', 'Trục lưới tam giác': 'Triangle grid axis',
-    'Nằm ngang': 'Horizontal', 'Nằm dọc': 'Vertical', 'Sao chép SVG': 'Copy SVG', 'Tải .svg': 'Download .svg',
+    'Kiểm tra cấu trúc': 'Structure checks', 'Kiểm tra hóa trị tự động': 'Check valence automatically',
+    'Nguyên tử vượt hóa trị cho phép được đánh dấu bằng vòng nét đứt màu đỏ.':
+      'Atoms exceeding their allowed valence are marked with a dashed red circle.',
+    'Nằm ngang': 'Horizontal', 'Nằm dọc': 'Vertical', 'Sao chép SVG': 'Copy SVG', 'Sao chép PNG': 'Copy PNG', 'Tải .svg': 'Download .svg',
     'Tải .png': 'Download .png', 'Lưu .json': 'Save .json', 'Sao chép': 'Copy', 'Làm mới': 'Refresh',
     '0 nguyên tử · 0 liên kết': '0 atoms · 0 bonds', 'Bắt điểm: Bật': 'Snap: On',
     'Mở index.html là chạy — không cần cài đặt.': 'Open index.html to run — no installation required.',
@@ -85,7 +88,8 @@ window.ChemI18n = (() => {
     '–F': '–F (fluoro)', '–Cl': '–Cl (chloro)', '–Br': '–Br (bromo)', '–I': '–I (iodo)',
     '–CH3': '–CH₃ (methyl)', 'Etan (C2)': 'Ethane (C2)', 'Propan (C3)': 'Propane (C3)',
     'Butan (C4)': 'Butane (C4)', 'Pentan (C5)': 'Pentane (C5)', 'Etanol': 'Ethanol',
-    'Axit axetic': 'Ethanoic acid (acetic acid)', 'Aceton': 'Propanone (acetone)', 'Ethen': 'Ethene', 'Etyne': 'Ethyne'
+    'Axit axetic': 'Ethanoic acid (acetic acid)', 'Aceton': 'Propanone (acetone)', 'Ethen': 'Ethene', 'Etyne': 'Ethyne',
+    'Glucose': 'Glucose', 'Galactose': 'Galactose', 'Fructose': 'Fructose', 'Ribose': 'Ribose'
   };
   const textOriginals = new WeakMap();
   const attrOriginals = new WeakMap();

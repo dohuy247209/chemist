@@ -368,7 +368,7 @@ window.ChemEditor = (() => {
     return best;
   }
   function fusionTransform(frag, p) {
-    if (!(frag.ring || frag.rings)) return null;
+    if (!(frag.ring || frag.rings) || frag.fusible === false) return null;
     const target = nearCycleBond(p, Math.max(18, (parseFloat(document.getElementById('optBondLen').value) || 40) * 0.55));
     if (!target) return null;
     const A = M.atom(target.a), B = M.atom(target.b);
@@ -513,12 +513,19 @@ window.ChemEditor = (() => {
     if (st.tpl) { placeTemplate(window.ChemTemplates.byName(st.tpl), p); st.tpl = null; syncTplButtons(); redraw(); return; }
     if (st.tool === 'select' && st.selectionMode === 'lasso') {
       try { stage.setPointerCapture(e.pointerId); } catch (err) {}
-      st.sel = null;
       const textElement = e.target.closest && e.target.closest('[data-tid]');
       const annotation = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
+      const hit = annotation ? { type: 'text', id: annotation.id } : hitTest(p);
+      if (hit) {
+        if (!selectionIncludesItem(st.sel, hit.type, hit.id)) st.sel = hit;
+        beginSelectionMove(p);
+        redraw();
+        return;
+      }
+      st.sel = null;
       st.drag = {
         mode: 'lasso', points: [p], startX: e.clientX, startY: e.clientY,
-        clickSelection: annotation ? { type: 'text', id: annotation.id } : hitTest(p)
+        clickSelection: hit
       };
       redraw();
       return;
@@ -557,17 +564,26 @@ window.ChemEditor = (() => {
     }
     if (st.tool === 'select') {
       if (hitText) {
-        st.sel = { type: 'text', id: hitText.id };
-        M.beginTx(); st.changed = false;
-        st.drag = { mode: 'move-text', id: hitText.id, last: p, moved: false };
+        if (isSelectedItem('text', hitText.id)) beginSelectionMove(p);
+        else {
+          st.sel = { type: 'text', id: hitText.id };
+          M.beginTx(); st.changed = false;
+          st.drag = { mode: 'move-text', id: hitText.id, last: p, moved: false };
+        }
       } else if (hitA) {
-        st.sel = { type: 'atom', id: hitA.id };
-        M.beginTx(); st.changed = false;
-        st.drag = { mode: 'move', from: hitA.id, ids: Array.from(M.component(hitA.id)), last: p, moved: false };
+        if (isSelectedItem('atom', hitA.id)) beginSelectionMove(p);
+        else {
+          st.sel = { type: 'atom', id: hitA.id };
+          M.beginTx(); st.changed = false;
+          st.drag = { mode: 'move', from: hitA.id, ids: Array.from(M.component(hitA.id)), last: p, moved: false };
+        }
       } else if (hitB) {
-        st.sel = { type: 'bond', id: hitB.id };
-        M.beginTx(); st.changed = false;
-        st.drag = { mode: 'move', from: null, ids: [hitB.a, hitB.b], last: p, moved: false };
+        if (isSelectedItem('bond', hitB.id)) beginSelectionMove(p);
+        else {
+          st.sel = { type: 'bond', id: hitB.id };
+          M.beginTx(); st.changed = false;
+          st.drag = { mode: 'move', from: null, ids: [hitB.a, hitB.b], last: p, moved: false };
+        }
       } else {
         st.sel = null;
         st.drag = { mode: 'box', x0: p.x, y0: p.y, x1: p.x, y1: p.y };
@@ -575,7 +591,7 @@ window.ChemEditor = (() => {
       redraw(); return;
     }
     if (st.tool === 'bond' && hitB) {
-      M.transact(() => M.cycleBondOrder(hitB.id), 'bond-order');
+      M.transact(() => applySelectedBondType(hitB.id), 'bond-order');
       return;
     }
     if (st.tool === 'erase') { M.beginTx(); st.changed = false; st.drag = { mode: 'erase' }; eraseAt(p); return; }
@@ -591,6 +607,66 @@ window.ChemEditor = (() => {
     }
     st.drag = { mode: 'bond', from: from.id, start: p, cur: null, moved: false, onAtom: false, createdFrom };
     redraw();
+  }
+  function selectionIncludesItem(selection, type, id) {
+    if (!selection) return false;
+    if (selection.type === 'multi') {
+      const key = type === 'atom' ? 'ids' : type === 'bond' ? 'bondIds' : 'textIds';
+      return (selection[key] || []).includes(id);
+    }
+    return selection.type === type && selection.id === id;
+  }
+  function isSelectedItem(type, id) {
+    return selectionIncludesItem(st.sel, type, id);
+  }
+  function beginSelectionMove(p) {
+    const selection = st.sel;
+    const ids = new Set(selection.type === 'multi' ? selection.ids || [] : []);
+    const bondIds = selection.type === 'multi'
+      ? selection.bondIds || []
+      : selection.type === 'bond' ? [selection.id] : [];
+    const textIds = selection.type === 'multi'
+      ? selection.textIds || []
+      : selection.type === 'text' ? [selection.id] : [];
+    for (const bondId of bondIds) {
+      const bond = M.bond(bondId);
+      if (bond) { ids.add(bond.a); ids.add(bond.b); }
+    }
+    if (selection.type === 'atom') {
+      for (const id of M.component(selection.id)) ids.add(id);
+    }
+    M.beginTx(); st.changed = false;
+    st.drag = {
+      mode: 'move-selection', ids: Array.from(ids), textIds: textIds.slice(),
+      last: p, moved: false
+    };
+  }
+  function moveSelectionItems(d, p) {
+    const dx = p.x - d.last.x, dy = p.y - d.last.y;
+    if (Math.abs(dx) + Math.abs(dy) <= 0.5) return;
+    const movedIds = new Set(d.ids);
+    const rings = M.S.rings.filter(ring => ring.atoms
+      ? ring.atoms.every(id => movedIds.has(id))
+      : d.ids.filter(id => {
+        const atom = M.atom(id);
+        return atom && Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10;
+      }).length >= 3);
+    for (const id of d.ids) {
+      const atom = M.atom(id);
+      if (atom) { atom.x = Math.round((atom.x + dx) * 10) / 10; atom.y = Math.round((atom.y + dy) * 10) / 10; }
+    }
+    for (const ring of rings) { ring.cx += dx; ring.cy += dy; }
+    for (const id of d.textIds || []) {
+      const annotation = M.textItem(id);
+      if (annotation) { annotation.x += dx; annotation.y += dy; }
+    }
+    d.last = p; d.moved = true; M.markTx(); redraw();
+  }
+  function applySelectedBondType(id) {
+    const existing = M.bond(id);
+    if (!existing) return null;
+    if (existing.order === st.order && existing.style === st.bstyle) return M.cycleBondOrder(id);
+    return M.setBondType(id, st.order, st.bstyle);
   }
   function onMove(e) {
     const p = toWorld(e);
@@ -623,20 +699,8 @@ window.ChemEditor = (() => {
       }
       return;
     }
-    if (d.mode === 'move') {
-      const dx = p.x - d.last.x, dy = p.y - d.last.y;
-      if (Math.abs(dx) + Math.abs(dy) > 0.5) {
-        const movedIds = new Set(d.ids);
-        const rings = M.S.rings.filter(ring => ring.atoms
-          ? ring.atoms.every(id => movedIds.has(id))
-          : d.ids.filter(id => {
-            const atom = M.atom(id);
-            return atom && Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 10;
-          }).length >= 3);
-        for (const id of d.ids) { const a = M.atom(id); if (a) { a.x = Math.round((a.x + dx) * 10) / 10; a.y = Math.round((a.y + dy) * 10) / 10; } }
-        for (const ring of rings) { ring.cx += dx; ring.cy += dy; }
-        d.last = p; d.moved = true; M.markTx(); redraw();
-      }
+    if (d.mode === 'move' || d.mode === 'move-selection') {
+      moveSelectionItems(d, p);
       return;
     }
     if (d.mode === 'bond') {
@@ -694,7 +758,7 @@ window.ChemEditor = (() => {
     }
     if (d.mode === 'erase') { M.endTx(); M.emit('change'); redraw(); return; }
     if (d.mode === 'move-text') { M.endTx(); if (d.moved) M.emit('change'); redraw(); return; }
-    if (d.mode === 'move') { M.endTx(); if (d.moved) M.emit('change'); redraw(); return; }
+    if (d.mode === 'move' || d.mode === 'move-selection') { M.endTx(); if (d.moved) M.emit('change'); redraw(); return; }
     if (d.mode === 'bond') {
       const A = M.atom(d.from);
       if (A && d.moved && d.cur) {
@@ -703,7 +767,7 @@ window.ChemEditor = (() => {
           const existing = M.S.bonds.find(bond =>
             (bond.a === d.from && bond.b === hit.id) || (bond.a === hit.id && bond.b === d.from)
           );
-          if (existing) M.cycleBondOrder(existing.id);
+          if (existing) applySelectedBondType(existing.id);
           else M.addBond(d.from, hit.id, st.order, st.bstyle);
           M.markTx();
         }
@@ -802,6 +866,11 @@ window.ChemEditor = (() => {
   function onKey(e) {
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    if (e.altKey && e.code === 'KeyR') {
+      e.preventDefault();
+      rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12, true);
+      return;
+    }
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? M.redo() : M.undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); M.redo(); return; }
@@ -818,7 +887,7 @@ window.ChemEditor = (() => {
     else if (k === 'g') toggleGrid();
     else if (k === 't') toggleGridType();
     else if (k === 'y') toggleGridOrientation();
-    else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12, e.altKey);
+    else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12, false);
     else if (k === 'd') { if (window.ChemApp && ChemApp.actions['toggle-theme']) ChemApp.actions['toggle-theme'](); }
     else if (k === '0') fitView();
     else if (k === 'escape') { st.tpl = null; st.sel = null; syncTplButtons(); redraw(); }
@@ -979,10 +1048,14 @@ window.ChemEditor = (() => {
       const edge = { a: pivot.id, b: parent.id };
       const ids = componentWithoutBond(pivot.id, edge);
       if (ids.has(parent.id)) {
-        setHint(text(
-          'Không thể tách nhánh tại liên kết này; hãy chọn liên kết nhánh để xoay.',
-          'This branch cannot be separated at the selected atom; select a branch bond to rotate it.'
-        ));
+        const component = M.component(pivot.id);
+        M.transact(() => rotateAtomGroup(
+          Array.from(component).map(id => M.atom(id)),
+          angle,
+          pivot,
+          component
+        ), 'rotate');
+        redraw();
         return true;
       }
       M.transact(() => rotateAtomGroup(
@@ -1100,13 +1173,25 @@ window.ChemEditor = (() => {
   function rotateAllComponents(angle) {
     const atoms = M.S.atoms;
     if (!atoms.length && !M.S.rings.length && !M.S.texts.length) return;
+    const points = [
+      ...atoms,
+      ...M.S.rings.map(ring => ({ x: ring.cx, y: ring.cy })),
+      ...M.S.texts
+    ];
+    const bounds = points.reduce((result, point) => ({
+      minX: Math.min(result.minX, point.x),
+      minY: Math.min(result.minY, point.y),
+      maxX: Math.max(result.maxX, point.x),
+      maxY: Math.max(result.maxY, point.y)
+    }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
     M.transact(() => {
-      for (const atom of atoms) Object.assign(atom, rotatePoint(atom, angle, { x: 0, y: 0 }));
+      for (const atom of atoms) Object.assign(atom, rotatePoint(atom, angle, center));
       for (const ring of M.S.rings) {
-        const center = rotatePoint({ x: ring.cx, y: ring.cy }, angle, { x: 0, y: 0 });
-        ring.cx = center.x; ring.cy = center.y;
+        const rotated = rotatePoint({ x: ring.cx, y: ring.cy }, angle, center);
+        ring.cx = rotated.x; ring.cy = rotated.y;
       }
-      for (const annotation of M.S.texts) Object.assign(annotation, rotatePoint(annotation, angle, { x: 0, y: 0 }));
+      for (const annotation of M.S.texts) Object.assign(annotation, rotatePoint(annotation, angle, center));
     }, 'grid-orientation');
     redraw();
   }

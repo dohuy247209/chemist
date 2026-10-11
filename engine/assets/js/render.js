@@ -285,6 +285,7 @@ window.ChemRender = (() => {
       const A = M.atom(b.a), B = M.atom(b.b);
       if (A && B) drawBond(bondLayer, b, A, B, o, shiny && !b.color ? bondPaint(A, B) : null);
     }
+    const invalidValence = o.valenceCheck ? new Set(M.valenceViolations()) : new Set();
     // 3) Vùng chọn phải có màu nền rõ ràng vì trang tích hợp không nạp stylesheet SVG của engine.
     if (sel) {
       if (sel.type === 'atom') {
@@ -309,9 +310,37 @@ window.ChemRender = (() => {
           el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.08, stroke: pal().blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
         }
       }
+      if (sel.type === 'multi') {
+        for (const id of sel.ids || []) {
+          const a = M.atom(id);
+          if (a) el('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.12, stroke: pal().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
+        }
+        for (const id of sel.bondIds || []) {
+          const b = M.bond(id);
+          if (!b) continue;
+          const A = M.atom(b.a), B = M.atom(b.b);
+          if (A && B) el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sel-ring', fill: 'none', stroke: pal().blue, 'stroke-opacity': 0.35, 'stroke-width': 9, 'pointer-events': 'none' }, world);
+        }
+        for (const id of sel.textIds || []) {
+          const t = M.textItem(id);
+          if (!t) continue;
+          const width = t.type === 'arrow'
+            ? Math.max(t.width || 96, Math.max((t.above || '').length, (t.below || '').length) * (t.fontSize || 20) * 0.6)
+            : Math.max(t.fontSize || 20, t.text.length * (t.fontSize || 20) * 0.6);
+          const height = t.type === 'arrow' ? (t.fontSize || 20) * 2 + 24 : (t.fontSize || 20);
+          el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.08, stroke: pal().blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
+        }
+      }
     }
     // 4) Nguyên tử: C trần vẽ chấm nhỏ; có nhãn vẽ chữ.
     for (const a of M.S.atoms) {
+      if (invalidValence.has(a.id)) el('circle', {
+        cx: a.x, cy: a.y, r: Math.max(13, o.font * 0.76),
+        fill: 'none', stroke: '#eca0a0', 'stroke-width': 1.8,
+        'stroke-dasharray': '3 2', 'pointer-events': 'none',
+        class: 'valence-warning',
+        'aria-label': `Invalid valence: ${a.el}`
+      }, world);
       if (M.isBareCarbon(a)) el('circle', { cx: a.x, cy: a.y, r: Math.max(1.6, o.stroke * 0.75), 'class': 'atom-dot', fill: a.color || pal().ink, 'data-aid': a.id }, world);
       else drawLabel(world, a, o.font);
       el('circle', { cx: a.x, cy: a.y, r: 12, fill: 'rgba(0,0,0,0)', 'data-aid': a.id, style: 'pointer-events:all' }, world);
@@ -336,7 +365,8 @@ window.ChemRender = (() => {
       stroke: parseFloat(v('optStroke')) || 2.5,
       font: parseFloat(v('optFont')) || 20,
       circle: document.getElementById('optCircle').value === 'enabled',
-      kekule: document.getElementById('optKekule').value === 'enabled'
+      kekule: document.getElementById('optKekule').value === 'enabled',
+      valenceCheck: document.getElementById('settingsValenceCheck').value === 'enabled'
     };
   }
   return { renderAll, drawLabel, currentOpts };

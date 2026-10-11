@@ -44,6 +44,28 @@ window.ChemTemplates = (() => {
     frag.bonds.push([0, 6]);
     return frag;
   }
+  function carbohydrateFrag(name, ringSize, oxygenIndex, substituents, rotation) {
+    const atoms = [], bonds = [];
+    for (let i = 0; i < ringSize; i++) {
+      const a = ang(i, ringSize, rotation || 0);
+      atoms.push({
+        el: i === oxygenIndex ? 'O' : 'C',
+        dx: Math.cos(a) * R,
+        dy: Math.sin(a) * R
+      });
+      bonds.push([i, (i + 1) % ringSize, 1]);
+    }
+    for (const [atomIndex, el, side] of substituents) {
+      const vertex = atoms[atomIndex];
+      const groupIndex = atoms.length;
+      atoms.push({ el, dx: vertex.dx, dy: vertex.dy + side * R });
+      bonds.push([atomIndex, groupIndex, 1]);
+    }
+    return {
+      name, group: 'sugar', atoms, bonds, fusible: false,
+      ring: { cx: 0, cy: 0, r: R, aromatic: false, vertices: Array.from({ length: ringSize }, (_, i) => i) }
+    };
+  }
 
   const FRAGS = [
     { name: 'Cyclopropan', group: 'sat', snapVertices: true,
@@ -83,6 +105,11 @@ window.ChemTemplates = (() => {
     funcFrag('–Br', [{ el: 'Br', dx: 0, dy: 0 }], []),
     funcFrag('–I', [{ el: 'I', dx: 0, dy: 0 }], []),
     funcFrag('–CH3', [{ el: 'C', dx: 0, dy: 0 }], []),
+    // ---- Đường đơn ----
+    carbohydrateFrag('Glucose', 6, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', 1], [5, 'CH2OH', -1]], Math.PI / 6),
+    carbohydrateFrag('Galactose', 6, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'OH', -1], [5, 'CH2OH', -1]], Math.PI / 6),
+    carbohydrateFrag('Fructose', 5, 0, [[1, 'CH2OH', -1], [1, 'OH', 1], [2, 'OH', -1], [3, 'OH', 1], [4, 'CH2OH', 1]]),
+    carbohydrateFrag('Ribose', 5, 0, [[1, 'OH', -1], [2, 'OH', 1], [3, 'OH', -1], [4, 'CH2OH', 1]]),
     // ---- Phân tử mẫu ----
     chainFrag('Etan (C2)', 2),
     chainFrag('Propan (C3)', 3),
@@ -100,7 +127,19 @@ window.ChemTemplates = (() => {
   function thumb(frag) {
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', '-54 -36 108 72');
+    const rotatePreview = frag.group === 'sugar';
+    const previewPoints = frag.atoms.map(atom => rotatePreview
+      ? { x: -atom.dy, y: atom.dx }
+      : { x: atom.dx, y: atom.dy });
+    const xs = previewPoints.map(point => point.x), ys = previewPoints.map(point => point.y);
+    const padding = 14;
+    const width = Math.max(60, Math.max(...xs) - Math.min(...xs) + padding * 2);
+    const height = Math.max(60, Math.max(...ys) - Math.min(...ys) + padding * 2);
+    const centerX = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const centerY = (Math.max(...ys) + Math.min(...ys)) / 2;
+    svg.setAttribute('viewBox', `${centerX - width / 2} ${centerY - height / 2} ${width} ${height}`);
+    const drawing = document.createElementNS(NS, 'g');
+    if (rotatePreview) drawing.setAttribute('transform', 'rotate(90)');
     const col = window.ChemModel.elColor;
     const ink = window.ChemTheme ? window.ChemTheme.palette().ink : '#202124';
     const mk = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
@@ -109,7 +148,7 @@ window.ChemTemplates = (() => {
       if (!A || !B) continue;
       const dx = B.dx - A.dx, dy = B.dy - A.dy, L = Math.hypot(dx, dy) || 1;
       const px = -dy / L * 1.6, py = dx / L * 1.6;
-      const add = (ox, oy) => svg.appendChild(mk('line', {
+      const add = (ox, oy) => drawing.appendChild(mk('line', {
         x1: (A.dx + ox + dx * .12).toFixed(1), y1: (A.dy + oy + dy * .12).toFixed(1),
         x2: (B.dx + ox - dx * .12).toFixed(1), y2: (B.dy + oy - dy * .12).toFixed(1),
         stroke: ink, 'stroke-width': 1.6, 'stroke-linecap': 'round'
@@ -121,18 +160,19 @@ window.ChemTemplates = (() => {
     const rings = frag.rings || (frag.ring ? [frag.ring] : []);
     for (const rg of rings) {
       if (!rg.aromatic) continue;
-      svg.appendChild(mk('circle', { cx: rg.cx, cy: rg.cy, r: rg.r * 0.5, fill: 'none', stroke: ink, 'stroke-width': 1.4 }));
+      drawing.appendChild(mk('circle', { cx: rg.cx, cy: rg.cy, r: rg.r * 0.5, fill: 'none', stroke: ink, 'stroke-width': 1.4 }));
     }
     frag.atoms.forEach(a => {
       if (a.el === 'C' && frag.atoms.length > 3) return;
       const t = mk('text', { x: a.dx, y: a.dy + 3.6, 'text-anchor': 'middle', 'font-size': 11, 'font-family': 'Arial, sans-serif', fill: col(a.el) });
-      t.textContent = a.el; svg.appendChild(t);
+      t.textContent = a.el; drawing.appendChild(t);
     });
+    svg.appendChild(drawing);
     return svg;
   }
 
   function renderLibraries(filter) {
-    const groups = { sat: 'tplSat', aro: 'tplAro', het: 'tplHet', fun: 'tplFun', mol: 'tplMol' };
+    const groups = { sat: 'tplSat', aro: 'tplAro', het: 'tplHet', fun: 'tplFun', sugar: 'tplSugar', mol: 'tplMol' };
     const q = (filter || '').trim().toLowerCase();
     for (const g in groups) {
       const host = document.getElementById(groups[g]);

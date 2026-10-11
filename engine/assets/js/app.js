@@ -6,6 +6,24 @@ window.ChemApp = (() => {
   const text = (vi, en) => I ? I.text(vi, en) : vi;
   const SETTINGS_KEY = 'chem-editor-settings';
   const AUTOSAVE_KEY = 'chem-editor-draft-v1';
+  const AUTOSAVE_LATEST_KEY = `${AUTOSAVE_KEY}:latest`;
+  function getTabAutosaveKey() {
+    try {
+      const tabIdKey = `${AUTOSAVE_KEY}:tab-id`;
+      let tabId = sessionStorage.getItem(tabIdKey);
+      if (!tabId) {
+        tabId = window.crypto && window.crypto.randomUUID
+          ? window.crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        sessionStorage.setItem(tabIdKey, tabId);
+      }
+      return `${AUTOSAVE_KEY}:${tabId}`;
+    } catch (error) {
+      console.warn('Unable to isolate the autosaved drawing for this tab.', error);
+      return AUTOSAVE_KEY;
+    }
+  }
+  const TAB_AUTOSAVE_KEY = getTabAutosaveKey();
   const LABEL_COLOR_KEYS = ['N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'OH', 'NH2', 'SH', 'COOH', 'CHO', 'COOCH3', 'NO2', 'CN', 'OCH3'];
   const COLOR_PRESET_SOURCES = [
     ['ink', 'Màu chữ (C)', 'Text color (C)'], ['white', 'Trắng', 'White'],
@@ -81,6 +99,7 @@ window.ChemApp = (() => {
       gridType: Ed.st.gridType,
       gridOrientation: Ed.st.gridOrientation,
       selectionMode: Ed.st.selectionMode,
+      valenceCheck: isEnabled('settingsValenceCheck'),
       shiny: document.getElementById('stage').classList.contains('shiny'),
       shinyIntensity: +document.getElementById('optShinyIntensity').value
     };
@@ -107,6 +126,7 @@ window.ChemApp = (() => {
     setEnabled('optTransparent', 'transparent');
     setEnabled('settingsGrid', 'grid');
     setEnabled('settingsSnap', 'snap');
+    setEnabled('settingsValenceCheck', 'valenceCheck');
     setEnabled('settingsShiny', 'shiny');
     if (s.selectionMode === 'select' || s.selectionMode === 'lasso') Ed.st.selectionMode = s.selectionMode;
     if (s.gridType === 'square' || s.gridType === 'triangle') Ed.st.gridType = s.gridType;
@@ -145,6 +165,7 @@ window.ChemApp = (() => {
     document.getElementById('optTransparent').value = 'disabled';
     document.getElementById('settingsGrid').value = 'enabled';
     document.getElementById('settingsSnap').value = 'enabled';
+    document.getElementById('settingsValenceCheck').value = 'enabled';
     document.getElementById('settingsGridType').value = 'square';
     document.getElementById('settingsGridOrientation').value = 'horizontal';
     Ed.setSelectionMode('select');
@@ -291,6 +312,7 @@ window.ChemApp = (() => {
     'export-svg': () => { X.exportSVG(); toast(text('Đã xuất file .svg ✓', 'Exported .svg file ✓')); },
     'export-png': () => X.exportPNG(),
     'copy-svg': () => X.copySVG(),
+    'copy-png': () => X.copyPNG(),
     'refresh-svg': () => { X.refreshCodeView(); toast(text('Đã làm mới mã SVG', 'SVG source refreshed')); },
     'insert-arrow': () => insertArrow('forward'),
     'insert-equilibrium': () => insertArrow('equilibrium'),
@@ -347,7 +369,7 @@ window.ChemApp = (() => {
         <li>Draw hydrocarbons, arenes, heterocycles, and functional groups with single, double, triple, wedge, and hashed bonds.</li>
         <li>Template library includes benzene, toluene, naphthalene, pyridine, pyrrole, furan, thiophene, and imidazole.</li>
         <li>Add reaction and equilibrium arrows with labels, and format text with chemistry-oriented LaTeX scripts.</li>
-        <li>Export SVG source, download .svg/.png, and save .json projects — runs offline without a server.</li>
+        <li>Export SVG source, copy PNG images, download .svg/.png, and save .json projects — runs offline without a server.</li>
       </ul>
       <p class="muted">Open <code>index.html</code> in any modern browser.</p>` : `
       <p><b>Chemistry Workspace</b> — công cụ web tĩnh vẽ công thức khung (skeletal) phong cách Google Workspace.</p>
@@ -355,7 +377,7 @@ window.ChemApp = (() => {
         <li>Vẽ hydrocarbon, arene, dị vòng, nhóm chức với đầy đủ liên kết đơn/đôi/ba, nét đậm–nét đứt.</li>
         <li>Thư viện mẫu: benzen, toluen, naftalen, pyridine, pyrrole, furan, thiophene, imidazole…</li>
         <li>Chèn mũi tên phản ứng/thuận nghịch kèm nhãn; định dạng công thức bằng LaTeX (chỉ số dưới/trên).</li>
-        <li>Xuất <b>SVG dạng mã</b>, tải .svg/.png, lưu dự án .json — chạy offline, không cần server.</li>
+        <li>Xuất <b>SVG dạng mã</b>, sao chép ảnh PNG, tải .svg/.png, lưu dự án .json — chạy offline, không cần server.</li>
       </ul>
       <p class="muted">Mở <code>index.html</code> bằng bất kỳ trình duyệt hiện đại nào.</p>`)
   };
@@ -539,12 +561,24 @@ window.ChemApp = (() => {
     if (r) { r.style.opacity = M.canRedo() ? 1 : .35; r.disabled = !M.canRedo(); }
   }
   function persistDraft() {
-    try { localStorage.setItem(AUTOSAVE_KEY, M.serialize()); }
+    try {
+      localStorage.setItem(TAB_AUTOSAVE_KEY, M.serialize(0));
+      localStorage.setItem(AUTOSAVE_LATEST_KEY, TAB_AUTOSAVE_KEY);
+    }
     catch (error) { console.warn('Unable to autosave the current drawing.', error); }
   }
   function restoreDraft() {
     let draft;
-    try { draft = localStorage.getItem(AUTOSAVE_KEY); }
+    try {
+      draft = localStorage.getItem(TAB_AUTOSAVE_KEY);
+      if (!draft) {
+        const latestKey = localStorage.getItem(AUTOSAVE_LATEST_KEY);
+        if (latestKey && latestKey.startsWith(`${AUTOSAVE_KEY}:`) && latestKey !== AUTOSAVE_LATEST_KEY) {
+          draft = localStorage.getItem(latestKey);
+        }
+      }
+      if (!draft) draft = localStorage.getItem(AUTOSAVE_KEY);
+    }
     catch (error) {
       console.warn('Unable to read the autosaved drawing.', error);
       return false;
@@ -576,6 +610,7 @@ window.ChemApp = (() => {
       if (key !== lastSelKey) { lastSelKey = key; updateProps(); }
     };
     Ed.init();
+    if (restoredDraft) Ed.fitView();
     updateProps(); updateUndoBtns();
     M.onChange(() => { persistDraft(); updateProps(); updateUndoBtns(); });
 
@@ -637,6 +672,9 @@ window.ChemApp = (() => {
     });
     document.getElementById('settingsSnap').addEventListener('change', e => {
       Ed.st.snap = e.target.value === 'enabled'; saveSettings();
+    });
+    document.getElementById('settingsValenceCheck').addEventListener('change', () => {
+      Ed.redraw(); saveSettings();
     });
     document.getElementById('settingsGridType').addEventListener('change', e => {
       Ed.st.gridType = e.target.value; Ed.updateGrid(); saveSettings();

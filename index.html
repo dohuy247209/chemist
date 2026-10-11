@@ -123,6 +123,7 @@
           <section class="side-sec"><h3>Vòng thơm (arene)</h3><div class="tpl-grid" id="tplAro"></div></section>
           <section class="side-sec"><h3>Dị vòng thơm</h3><div class="tpl-grid" id="tplHet"></div></section>
           <section class="side-sec"><h3>Nhóm chức</h3><div class="tpl-grid" id="tplFun"></div></section>
+          <section class="side-sec"><h3>Đường đơn</h3><div class="tpl-grid" id="tplSugar"></div></section>
           <section class="side-sec"><h3>Phân tử mẫu</h3><div class="tpl-grid" id="tplMol"></div></section>
           <p class="side-tip">💡 Chọn mẫu rồi nhấn lên khung vẽ. Đặt vòng mới gần một cạnh của vòng sẵn có để ghép chung cạnh; chọn cấu trúc rồi dùng ↶ / ↻ hoặc R để xoay.</p>
         </div>
@@ -190,6 +191,7 @@
               </label>
               <div class="btnrow chem-export-actions">
                 <button class="matter-btn chem-action" data-action="copy-svg">Sao chép SVG</button>
+                <button class="matter-btn chem-action" data-action="copy-png">Sao chép PNG</button>
                 <button class="matter-btn chem-action" data-action="export-svg">Tải .svg</button>
                 <button class="matter-btn chem-action" data-action="export-png">Tải .png</button>
                 <button class="matter-btn chem-action" data-action="save-json">Lưu .json</button>
@@ -236,6 +238,13 @@
               <label class="chem-option chem-select-option">Trục lưới tam giác
                 <select id="settingsGridOrientation"><option value="horizontal">Nằm ngang</option><option value="vertical">Nằm dọc</option></select>
               </label>
+            </section>
+            <section class="chem-property-group">
+              <h3>Kiểm tra cấu trúc</h3>
+              <label class="chem-option chem-select-option">Kiểm tra hóa trị tự động
+                <select id="settingsValenceCheck"><option value="disabled">Tắt</option><option value="enabled" selected>Bật</option></select>
+              </label>
+              <p class="muted">Nguyên tử vượt hóa trị cho phép được đánh dấu bằng vòng nét đứt màu đỏ.</p>
             </section>
             <section class="chem-property-group">
               <h3>Màu mặc định của nhãn</h3>

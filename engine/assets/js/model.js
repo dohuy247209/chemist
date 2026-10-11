@@ -82,10 +82,24 @@ window.ChemModel = (() => {
     const existing = bond(id);
     if (!existing) return null;
     existing.order = existing.order % 3 + 1;
+    existing.style = 'solid';
     existing.dbl = false;
     existing.arom = false;
     delete existing.cx;
     delete existing.cy;
+    delete existing.dblSide;
+    return existing;
+  }
+  function setBondType(id, order, style) {
+    const existing = bond(id);
+    if (!existing) return null;
+    existing.order = order;
+    existing.style = style;
+    existing.dbl = false;
+    existing.arom = false;
+    delete existing.cx;
+    delete existing.cy;
+    delete existing.dblSide;
     return existing;
   }
   function addRing(cx, cy, r, aromatic) { const g = { id: S.seq++, cx, cy, r, aromatic: !!aromatic }; S.rings.push(g); return g; }
@@ -93,6 +107,35 @@ window.ChemModel = (() => {
   const neighbors = id => S.bonds.filter(b => b.a === id || b.b === id).map(b => b.a === id ? b.b : b.a);
   const degree = id => S.bonds.filter(b => b.a === id || b.b === id).length;
   const bondsOf = id => S.bonds.filter(b => b.a === id || b.b === id);
+  const MAX_VALENCE = Object.freeze({
+    H: 1, B: 3, C: 4, N: 3, 'N⁺': 4, 'N⁻': 3, O: 2, 'O⁺': 3, 'O⁻': 1,
+    F: 1, Si: 4, P: 5, S: 6, Cl: 1, Se: 6, Br: 1, I: 1,
+    OH: 1, NH2: 1, SH: 1, COOH: 1, CHO: 1, COOCH3: 1, NO2: 1, CH2OH: 1,
+    CN: 1, OCH3: 1, CH3: 1, CH2: 1, NH: 1, NH3: 1, SO3H: 1,
+    PO4: 1, SO2: 1, C2H5: 1
+  });
+  function valenceViolations() {
+    const aromaticEdges = new Set();
+    for (const ring of S.rings) {
+      if (!ring.aromatic || !Array.isArray(ring.atoms) || ring.atoms.length < 3) continue;
+      for (let i = 0; i < ring.atoms.length; i++) {
+        const a = ring.atoms[i], b = ring.atoms[(i + 1) % ring.atoms.length];
+        aromaticEdges.add(a < b ? `${a}:${b}` : `${b}:${a}`);
+      }
+    }
+    const valence = new Map();
+    for (const bond of S.bonds) {
+      const aromatic = aromaticEdges.has(bond.a < bond.b
+        ? `${bond.a}:${bond.b}`
+        : `${bond.b}:${bond.a}`);
+      const order = aromatic ? 1.5 : Math.max(1, Number(bond.order) || 1);
+      valence.set(bond.a, (valence.get(bond.a) || 0) + order);
+      valence.set(bond.b, (valence.get(bond.b) || 0) + order);
+    }
+    return S.atoms
+      .filter(atom => MAX_VALENCE[atom.el] != null && (valence.get(atom.id) || 0) > MAX_VALENCE[atom.el])
+      .map(atom => atom.id);
+  }
   const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
   function nearAtom(p, tol) { let best = null, bd = tol || 14; for (const a of S.atoms) { const d = dist(p, a); if (d < bd) { bd = d; best = a; } } return best; }
   function nearBond(p, tol) {
@@ -119,8 +162,90 @@ window.ChemModel = (() => {
     return T ? T.elColor(el) : (ELCOLOR[el] || '#202124');
   };
   const isBareCarbon = a => a.el === 'C' && degree(a.id) > 0;
-  function serialize() { return JSON.stringify({ app: 'chemistry-workspace', v: 1, atoms: S.atoms, bonds: S.bonds, rings: S.rings, texts: S.texts }, null, 2); }
-  function deserialize(j) { const o = JSON.parse(j); if (!o.atoms || !o.bonds) throw new Error('File không đúng định dạng'); S.atoms = o.atoms; S.bonds = o.bonds; S.rings = o.rings || []; S.texts = o.texts || []; S.seq = Math.max(0, ...S.atoms.map(a => a.id), ...S.bonds.map(b => b.id), ...S.rings.map(r => r.id || 0), ...S.texts.map(t => t.id || 0)) + 1; clearHist(); emit('open'); }
+  function serialize(space) { return JSON.stringify({ app: 'chemistry-workspace', v: 1, atoms: S.atoms, bonds: S.bonds, rings: S.rings, texts: S.texts }, null, space === undefined ? 2 : space); }
+  function deserialize(j) {
+    const o = JSON.parse(j);
+    if (!o || typeof o !== 'object' || Array.isArray(o) ||
+        !Array.isArray(o.atoms) || !Array.isArray(o.bonds)) {
+      throw new Error('File không đúng định dạng');
+    }
+    const rings = o.rings === undefined ? [] : o.rings;
+    const texts = o.texts === undefined ? [] : o.texts;
+    if (!Array.isArray(rings) || !Array.isArray(texts)) throw new Error('File không đúng định dạng');
+    const bonds = o.bonds.map(item => item && typeof item === 'object'
+      ? Object.assign({ order: 1, style: 'solid', arom: false, dbl: false }, item)
+      : item);
+
+    const ids = new Set();
+    const registerId = id => {
+      if (!Number.isSafeInteger(id) || id < 1 || ids.has(id)) throw new Error('ID đối tượng không hợp lệ hoặc bị trùng');
+      ids.add(id);
+    };
+    for (const atom of o.atoms) {
+      if (!atom || typeof atom !== 'object' || !Number.isSafeInteger(atom.id) ||
+          !Number.isFinite(atom.x) || !Number.isFinite(atom.y) ||
+          typeof atom.el !== 'string' || !atom.el.trim()) throw new Error('Nguyên tử không hợp lệ');
+      registerId(atom.id);
+    }
+    const atomIds = new Set(o.atoms.map(atom => atom.id));
+    const bondIds = new Set();
+    for (const item of bonds) {
+      if (!item || typeof item !== 'object' || !Number.isSafeInteger(item.id) ||
+          !atomIds.has(item.a) || !atomIds.has(item.b) || item.a === item.b ||
+          !Number.isInteger(item.order) || item.order < 1 || item.order > 3 ||
+          !['solid', 'wedge', 'hash'].includes(item.style)) throw new Error('Liên kết không hợp lệ hoặc tham chiếu nguyên tử không tồn tại');
+      registerId(item.id);
+      bondIds.add(item.id);
+    }
+    for (const ring of rings) {
+      if (!ring || typeof ring !== 'object' || !Number.isFinite(ring.cx) ||
+          !Number.isFinite(ring.cy) || !Number.isFinite(ring.r) || ring.r <= 0) {
+        throw new Error('Vòng không hợp lệ');
+      }
+      if (ring.id !== undefined) registerId(ring.id);
+      if (ring.atoms !== undefined &&
+          (!Array.isArray(ring.atoms) || ring.atoms.length < 3 || ring.atoms.some(id => !atomIds.has(id)))) {
+        throw new Error('Vòng tham chiếu nguyên tử không tồn tại');
+      }
+      if (ring.dblIds !== undefined &&
+          (!Array.isArray(ring.dblIds) || ring.dblIds.some(id => !bondIds.has(id)))) {
+        throw new Error('Vòng tham chiếu liên kết không tồn tại');
+      }
+    }
+    const normalizedTexts = texts.map(item => {
+      if (!item || typeof item !== 'object') throw new Error('Chú thích không hợp lệ');
+      const type = item.type || (item.arrowType || item.above || item.below ? 'arrow' : 'text');
+      if (type !== 'text' && type !== 'arrow') throw new Error('Loại chú thích không hợp lệ');
+      if (!Number.isFinite(item.x) || !Number.isFinite(item.y) ||
+          !Number.isFinite(item.fontSize || 20) || (item.fontSize || 20) <= 0) {
+        throw new Error('Vị trí hoặc cỡ chữ của chú thích không hợp lệ');
+      }
+      registerId(item.id);
+      if (type === 'arrow') {
+        if (item.arrowType !== undefined && !['forward', 'equilibrium'].includes(item.arrowType)) {
+          throw new Error('Loại mũi tên không hợp lệ');
+        }
+        if (item.width !== undefined && (!Number.isFinite(item.width) || item.width <= 0)) {
+          throw new Error('Độ rộng mũi tên không hợp lệ');
+        }
+        if ((item.above !== undefined && typeof item.above !== 'string') ||
+            (item.below !== undefined && typeof item.below !== 'string')) throw new Error('Nhãn mũi tên không hợp lệ');
+        return Object.assign({ type, fontSize: 20, width: 96, arrowType: 'forward', above: '', below: '', latex: false }, item);
+      }
+      if (typeof item.text !== 'string') throw new Error('Nội dung chú thích không hợp lệ');
+      return Object.assign({ type, fontSize: 20, latex: false }, item);
+    });
+
+    S.atoms = o.atoms;
+    S.bonds = bonds;
+    S.rings = rings;
+    S.texts = normalizedTexts;
+    let maxId = 0;
+    for (const id of ids) maxId = Math.max(maxId, id);
+    S.seq = maxId + 1;
+    clearHist();
+    emit('open');
+  }
   function bbox(pad) {
     if (!S.atoms.length && !S.texts.length) return null; const p = pad == null ? 30 : pad;
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
@@ -138,5 +263,5 @@ window.ChemModel = (() => {
     }
     return { x: x0 - p, y: y0 - p, w: Math.max(10, x1 - x0 + p * 2), h: Math.max(10, y1 - y0 + p * 2) };
   }
-  return { S, onChange, emit, transact, undo, redo, beginTx, markTx, endTx, canUndo, canRedo, atom, bond, textItem, addAtom, addText, addBond, cycleBondOrder, removeAtom, removeBond, removeText, addRing, clearAll, neighbors, degree, bondsOf, dist, nearAtom, nearBond, component, elColor, isBareCarbon, serialize, deserialize, bbox };
+  return { S, onChange, emit, transact, undo, redo, beginTx, markTx, endTx, canUndo, canRedo, atom, bond, textItem, addAtom, addText, addBond, cycleBondOrder, setBondType, removeAtom, removeBond, removeText, addRing, clearAll, neighbors, degree, bondsOf, valenceViolations, dist, nearAtom, nearBond, component, elColor, isBareCarbon, serialize, deserialize, bbox };
 })();
