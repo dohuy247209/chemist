@@ -150,7 +150,10 @@ window.ChemTemplates = (() => {
     ringFrag('Cyclobutan', 'sat', 4, false, Math.PI / 4),
     ringFrag('Cyclopentan', 'sat', 5, false, 0),
     ringFrag('Cyclohexan', 'sat', 6, false, Math.PI / 6),
-    { name: 'Chairs', group: 'sat', atoms: [{ el: 'C', dx: -R, dy: -R * .6 }, { el: 'C', dx: -R * .3, dy: -R }, { el: 'C', dx: R * .4, dy: -R * .6 }, { el: 'C', dx: R, dy: R * .1 }, { el: 'C', dx: R * .3, dy: R * .6 }, { el: 'C', dx: -R * .4, dy: R * .1 }], bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]] },
+    // Ghế (chair) cyclohexane: chiếu xiên ~50° của hình 3D đúng (6 đỉnh so le ±h,
+    // đối xứng tâm qua tâm vòng). Cặp cạnh đối diện luôn song song; 2 cạnh ngắn là
+    // cạnh lùi vào màn hình (co ngắn perspective) — không phải tọa độ tùy hứng.
+    { name: 'Chairs', group: 'sat', atoms: [{ el: 'C', dx: R, dy: -R * .175 }, { el: 'C', dx: R / 2, dy: R * .85 }, { el: 'C', dx: -R / 2, dy: R * .475 }, { el: 'C', dx: -R, dy: R * .175 }, { el: 'C', dx: -R / 2, dy: -R * .85 }, { el: 'C', dx: R / 2, dy: -R * .475 }], bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]] },
     ringFrag('Benzen', 'aro', 6, true, Math.PI / 6, null, [0, 2, 4]),
     { name: 'Toluen', group: 'aro', atoms: [{ el: 'C', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: R, dy: 0 }, { el: 'C', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R, dy: 0 }, { el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: R * 2, dy: 0 }], bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [1, 6]], ring: { cx: 0, cy: 0, r: R, aromatic: true, dbl: [0, 2, 4], vertices: [0, 1, 2, 3, 4, 5] } },
     { name: 'Naftalen', group: 'aro',
@@ -165,14 +168,16 @@ window.ChemTemplates = (() => {
     ringFrag('Piridine (N)', 'het', 6, true, Math.PI / 6, ['N', 0, 0, 0, 0, 0], [0, 2, 4]),
     ringFrag('Imidazole', 'het', 5, true, -Math.PI / 2, ['N', 0, 'N', 0, 0], [0, 3]),
     // ---- Nhóm chức ----
-    funcFrag('–OH', [{ el: 'O', dx: 0, dy: 0 }, { el: 'H', dx: R, dy: 0 }], [[0, 1]]),
+    // –OH: O–H gấp 120° so với bond nối vào (bản cũ thẳng hàng 180°), đồng bộ –NH2.
+    funcFrag('–OH', [{ el: 'O', dx: 0, dy: 0 }, { el: 'H', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }], [[0, 1]]),
     funcFrag('–NH2', [{ el: 'N', dx: 0, dy: 0 }, { el: 'H', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'H', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1], [0, 2]]),
-    funcFrag('–SH', [{ el: 'S', dx: 0, dy: 0 }, { el: 'H', dx: R, dy: 0 }], [[0, 1]]),
+    funcFrag('–SH', [{ el: 'S', dx: 0, dy: 0 }, { el: 'H', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }], [[0, 1]]),
     funcFrag('=O', [{ el: 'O', dx: 0, dy: 0 }], [], { order: 2 }),
     funcFrag('=S', [{ el: 'S', dx: 0, dy: 0 }], [], { order: 2 }),
     funcFrag('–CHO', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'H', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
     funcFrag('–COOH', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'OH', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
-    funcFrag('–COOCH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: R, dy: R * Math.sqrt(3) }], [[0, 1, 2], [0, 2], [2, 3]]),
+    // –COOCH3: methyl xoay để góc C–O–C = 120° (bản cũ gần như thẳng 150°).
+    funcFrag('–COOCH3', [{ el: 'C', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O', dx: R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'C', dx: R + R * Math.sqrt(3) / 2, dy: R * Math.sqrt(3) / 2 - R / 2 }], [[0, 1, 2], [0, 2], [2, 3]]),
     funcFrag('–NO2', [{ el: 'N⁺', dx: 0, dy: 0 }, { el: 'O', dx: R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'O⁻', dx: R / 2, dy: R * Math.sqrt(3) / 2 }], [[0, 1, 2], [0, 2]]),
     funcFrag('–CN', [{ el: 'C', dx: 0, dy: 0 }, { el: 'N', dx: R, dy: 0 }], [[0, 1, 3]]),
     funcFrag('–F', [{ el: 'F', dx: 0, dy: 0 }], []),
@@ -187,11 +192,14 @@ window.ChemTemplates = (() => {
     chainFrag('Propan (C3)', 3),
     chainFrag('Butan (C4)', 4),
     chainFrag('Pentan (C5)', 5),
-    { name: 'Etanol', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 2, dy: 0 }, { el: 'H', dx: R * 3, dy: 0 }], bonds: [[0, 1], [1, 2], [2, 3]] },
+    // Etanol: zig-zag C–C–O 120°, O–H gấp ~109°; mọi bond = R (bản cũ đặt thẳng hàng 180°).
+    { name: 'Etanol', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.5, dy: D / 2 }, { el: 'H', dx: R * 2.26, dy: R * .215 }], bonds: [[0, 1], [1, 2], [2, 3]] },
     { name: 'Axit axetic', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'O', dx: R * 1.5, dy: -R * Math.sqrt(3) / 2 }, { el: 'OH', dx: R * 1.5, dy: R * Math.sqrt(3) / 2 }], bonds: [[0, 1], [1, 2, 2], [1, 3]] },
     { name: 'Aceton', group: 'mol', atoms: [{ el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: -R / 2, dy: -R * Math.sqrt(3) / 2 }, { el: 'C', dx: -R / 2, dy: R * Math.sqrt(3) / 2 }, { el: 'O', dx: R, dy: 0 }], bonds: [[0, 1], [0, 2], [0, 3, 2]] },
     { name: 'Ethen', group: 'mol', atoms: [{ el: 'C', dx: -R / 2, dy: 0 }, { el: 'C', dx: R / 2, dy: 0 }], bonds: [[0, 1, 2]] },
-    { name: 'Etyne', group: 'mol', atoms: [{ el: 'C', dx: -R, dy: 0 }, { el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }], bonds: [[0, 1, 3], [1, 2, 3]] }
+    // Etyne: H–C≡C–H (4 nguyên tử, liên kết ba ở giữa) — bản cũ là C≡C≡C
+    // (carbon giữa hóa trị 6, vẽ 2 liên kết ba liền nhau).
+    { name: 'Etyne', group: 'mol', atoms: [{ el: 'H', dx: -R, dy: 0 }, { el: 'C', dx: 0, dy: 0 }, { el: 'C', dx: R, dy: 0 }, { el: 'H', dx: R * 2, dy: 0 }], bonds: [[1, 2, 3], [0, 1], [2, 3]] }
   ];
 
   // Đổi layout hiển thị cho nhóm đường và dựng lại các fragment sugar tại chỗ

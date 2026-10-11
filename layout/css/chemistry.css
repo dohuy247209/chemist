@@ -649,8 +649,14 @@ body .dg.main.chem-properties {
   stroke: var(--chem-line);
 }
 
+/* Hint & zoombar: base position/display không tồn tại trong engine/assets/css/style.css
+   (root index.html không nạp file đó) nên phải khai đầy đủ tại đây. */
 .chem-canvas-area .hint {
+  position: absolute;
   top: 12px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
   max-width: 90%;
   padding: 6px 12px;
   overflow: hidden;
@@ -658,10 +664,21 @@ body .dg.main.chem-properties {
   background: var(--chem-hint-bg);
   color: var(--chem-hint-ink);
   font-size: 11px;
+  white-space: nowrap;
   text-overflow: ellipsis;
+  opacity: .92;
+  pointer-events: none;
+  transition: opacity .4s;
+}
+
+.chem-canvas-area .hint.hide {
+  opacity: 0;
 }
 
 .chem-canvas-area .zoombar {
+  position: absolute;
+  z-index: 3;
+  display: flex;
   bottom: 12px;
   left: 12px;
   gap: 1px;
@@ -675,11 +692,17 @@ body .dg.main.chem-properties {
 .chem-canvas-area .zoombar button {
   min-width: 30px;
   height: 28px;
+  padding: 0 6px;
+  border: 0;
   border-radius: 3px;
+  background: none;
   color: var(--chem-ink);
+  font-size: 14px;
+  cursor: pointer;
 }
 
-.chem-canvas-area .zoombar button:hover {
+.chem-canvas-area .zoombar button:hover,
+.chem-canvas-area .zoombar button.active {
   background: var(--chem-row);
 }
 

@@ -844,13 +844,13 @@ window.ChemEditor = (() => {
           st.sel = lassoSelection(d.points);
         }
       } else st.sel = null;
-      redraw(); return;
+      redraw(); hintSelectionCount(); return;
     }
     if (d.mode === 'box') {
       const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
       const y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
       st.sel = boxSelection({ x0, y0, x1, y1 });
-      redraw(); return;
+      redraw(); hintSelectionCount(); return;
     }
     if (d.mode === 'chain') {
       const pts = chainPoints(d.start, d.cur || d.start);
@@ -936,6 +936,15 @@ window.ChemEditor = (() => {
     }
     return { type: 'multi', ids, bondIds, textIds };
   }
+  // Thông báo số đối tượng vừa được quét chọn (box/lasso/select-all).
+  function hintSelectionCount() {
+    const sel = st.sel;
+    const n = !sel ? 0 : sel.type === 'multi' ? (sel.ids || []).length : 1;
+    if (n) setHint(text(
+      'Đã chọn ' + n + ' đối tượng — kéo để di chuyển, nhấn R để xoay, Delete để xóa.',
+      'Selected ' + n + ' item' + (n > 1 ? 's' : '') + ' — drag to move, press R to rotate, Delete to remove.'
+    ));
+  }
   function eraseAt(p) {
     const h = hitTest(p); if (!h) return;
     if (h.type === 'atom') { M.removeAtom(h.id); if (st.sel && st.sel.id === h.id) st.sel = null; }
@@ -994,7 +1003,12 @@ window.ChemEditor = (() => {
     else if (k === 'r') rotateSelection(e.shiftKey ? -Math.PI / 12 : Math.PI / 12, false);
     else if (k === 'd') { if (window.ChemApp && ChemApp.actions['toggle-theme']) ChemApp.actions['toggle-theme'](); }
     else if (k === '0') fitView();
-    else if (k === 'escape') { st.tpl = null; st.sel = null; syncTplButtons(); redraw(); }
+    else if (k === 'escape') {
+      const hadTpl = st.tpl, hadSel = st.sel;
+      st.tpl = null; st.sel = null; syncTplButtons(); redraw();
+      if (hadTpl) setHint(text('Đã hủy mẫu đang chọn.', 'Cleared the selected template.'));
+      else if (hadSel) setHint(text('Đã bỏ chọn.', 'Selection cleared.'));
+    }
     else if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSel(); }
   }
   function onKeyUp(e) { if (e.key === ' ') { st.space = false; stage.classList.remove('panning'); } }
@@ -1029,6 +1043,16 @@ window.ChemEditor = (() => {
     });
     stage.style.cursor = t === 'pan' ? 'grab' : t === 'select' && st.selectionMode !== 'lasso' ? 'default' : 'crosshair';
     syncTplButtons(); redraw();
+    const tips = {
+      select: text('Nhấn để chọn, kéo vùng để quét chọn nhiều; nhấn đúp nguyên tử để đổi ký hiệu.', 'Click to select, drag a box to select many; double-click an atom to edit its label.'),
+      pan: text('Kéo để di chuyển khung nhìn; cuộn chuột để phóng to/thu nhỏ (phím 0: vừa khung).', 'Drag to pan; scroll to zoom (key 0: fit to view).'),
+      atom: text('Nhấn hoặc kéo trên khung vẽ để đặt "' + st.el + '" và nối liên kết.', 'Click or drag on the canvas to place "' + st.el + '" and bond it.'),
+      bond: text('Kéo giữa hai nguyên tử để vẽ liên kết; nhấn 1–5 để đổi loại liên kết.', 'Drag between two atoms to draw a bond; press 1–5 to change the bond type.'),
+      erase: text('Nhấn hoặc kéo qua đối tượng để xóa.', 'Click or drag over objects to erase them.'),
+      chain: text('Kéo trên khung vẽ để vẽ mạch zigzag carbon.', 'Drag on the canvas to draw a zig-zag carbon chain.'),
+      text: text('Nhấn lên khung vẽ để nhập chú thích.', 'Click on the canvas to insert an annotation.')
+    };
+    if (tips[t]) setHint(tips[t]);
   }
   function setSelectionMode(mode) {
     if (mode !== 'select' && mode !== 'lasso') throw new Error(`Unsupported selection mode: ${mode}`);
@@ -1047,6 +1071,17 @@ window.ChemEditor = (() => {
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     stage.style.cursor = 'crosshair'; syncTplButtons(); redraw();
+    const bondLabel = st.bstyle === 'wedge'
+      ? text('nét đậm', 'wedge bond')
+      : st.bstyle === 'hash'
+        ? text('nét đứt', 'hashed bond')
+        : st.order === 3 ? text('liên kết ba', 'triple bond')
+        : st.order === 2 ? text('liên kết đôi', 'double bond')
+        : text('liên kết đơn', 'single bond');
+    setHint(text(
+      'Đang chọn ' + bondLabel + ' — kéo giữa hai nguyên tử để vẽ; nhấn lên liên kết đang có để đổi kiểu.',
+      'Selected ' + bondLabel + ' — drag between two atoms to draw; click an existing bond to change its type.'
+    ));
   }
   function setElement(el) {
     st.el = el;
@@ -1066,7 +1101,7 @@ window.ChemEditor = (() => {
     syncTplButtons(); redraw();
     if (st.tpl) {
       const name = window.ChemI18n ? window.ChemI18n.name(st.tpl) : st.tpl;
-      setHint(text('Nhấn lên khung vẽ để đặt "' + name + '". Nhấn mẫu lần nữa hoặc Esc để hủy.', 'Click the canvas to place "' + name + '". Click the template again or press Esc to cancel.'));
+      setHint(text('Nhấn lên khung vẽ để đặt "' + name + '" — R/Shift+R để xoay, đặt gần vòng khác để hàn chung cạnh. Nhấn mẫu lần nữa hoặc Esc để hủy.', 'Click the canvas to place "' + name + '" — press R/Shift+R to rotate, place near another ring to fuse a shared edge. Click the template again or press Esc to cancel.'));
     }
   }
   function syncTplButtons() {
@@ -1076,6 +1111,7 @@ window.ChemEditor = (() => {
     const ids = M.S.atoms.map(a => a.id);
     st.sel = selectionFromItems(ids, M.S.bonds.map(bond => bond.id), M.S.texts.map(annotation => annotation.id));
     redraw();
+    hintSelectionCount();
   }
   function deleteSel() {
     const s = st.sel; if (!s) return;
@@ -1090,6 +1126,16 @@ window.ChemEditor = (() => {
       }
     }, 'delete');
     st.sel = null; redraw();
+    setHint(text('Đã xóa đối tượng đã chọn — Ctrl+Z để hoàn tác.', 'Deleted the selected items — press Ctrl+Z to undo.'));
+  }
+  function hintRotate(angle, whole) {
+    const deg = Math.round(Math.abs(angle) * 180 / Math.PI);
+    const dir = angle < 0
+      ? text('ngược chiều kim đồng hồ', 'counterclockwise')
+      : text('theo chiều kim đồng hồ', 'clockwise');
+    setHint(whole
+      ? text('Đã xoay toàn bộ cấu trúc ' + deg + '° ' + dir + '. Alt+R để xoay tiếp.', 'Rotated the whole structure ' + deg + '° ' + dir + '. Press Alt+R to rotate again.')
+      : text('Đã xoay ' + deg + '° ' + dir + ' — nhấn R / Shift+R để xoay tiếp, Alt+R xoay cả phân tử.', 'Rotated ' + deg + '° ' + dir + ' — press R / Shift+R to rotate again, Alt+R for the whole molecule.'));
   }
   function rotateSelection(angle, wholeComponent) {
     if (st.tpl) {
@@ -1124,6 +1170,7 @@ window.ChemEditor = (() => {
         const ids = M.component(pivot.id);
         M.transact(() => rotateAtomGroup(Array.from(ids).map(id => M.atom(id)), angle, pivot, ids), 'rotate');
         redraw();
+        hintRotate(angle, true);
         return true;
       }
       const ringIds = ringGroupForAtom(pivot.id);
@@ -1142,6 +1189,7 @@ window.ChemEditor = (() => {
           : pivot;
         M.transact(() => rotateAtomGroup(Array.from(ids).map(id => M.atom(id)), angle, center, ids), 'rotate');
         redraw();
+        hintRotate(angle, false);
         return true;
       }
       const neighbors = M.neighbors(pivot.id);
@@ -1166,6 +1214,7 @@ window.ChemEditor = (() => {
           component
         ), 'rotate');
         redraw();
+        hintRotate(angle, true);
         return true;
       }
       M.transact(() => rotateAtomGroup(
@@ -1175,6 +1224,7 @@ window.ChemEditor = (() => {
         ids
       ), 'rotate');
       redraw();
+      hintRotate(angle, false);
       return true;
     } else ids = new Set(st.sel.ids || []);
     ids = new Set(Array.from(ids).filter(id => M.atom(id)));
@@ -1196,6 +1246,7 @@ window.ChemEditor = (() => {
 
     M.transact(() => rotateAtomGroup(Array.from(ids).map(id => M.atom(id)), angle, pivot, ids), 'rotate');
     redraw();
+    hintRotate(angle, false);
     return true;
   }
   function ringGroupForAtom(atomId) {
