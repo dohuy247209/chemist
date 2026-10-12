@@ -291,7 +291,7 @@ window.ChemRender = (() => {
     for (const b of M.S.bonds) if (b.dbl) { b.dbl = false; b.cx = undefined; b.cy = undefined; }
     for (const g of M.S.rings) {
       if (!g.aromatic) continue;
-      if (o.circle) el('circle', { cx: g.cx, cy: g.cy, r: g.r * 0.52, fill: 'none', stroke: pal().ink, 'stroke-width': o.stroke * 0.8, 'class': 'arom-circle' }, world);
+      if (o.circle) el('circle', { cx: g.cx, cy: g.cy, r: g.r * 0.52, fill: 'none', stroke: pal().ink, 'stroke-width': o.stroke * 0.8, 'class': 'arom-circle', 'data-ring-id': g.id }, world);
       else if (o.kekule && g.dblIds) {
         for (const id of g.dblIds) {
           const b = M.bond(id);
@@ -367,7 +367,7 @@ window.ChemRender = (() => {
     }
     for (const t of M.S.texts) {
       if (t.type === 'arrow') {
-        drawArrow(world, t, pal().ink);
+        drawArrow(el('g', { 'data-tid': t.id }, world), t, pal().ink);
         continue;
       }
       const label = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': 'Arial, sans-serif', 'font-size': t.fontSize, fill: pal().ink, class: 'canvas-text', 'data-tid': t.id }, world);

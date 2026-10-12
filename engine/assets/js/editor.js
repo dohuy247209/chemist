@@ -230,8 +230,11 @@ window.ChemEditor = (() => {
       });
     }
     const draggingBox = st.drag && st.drag.mode === 'box';
-    const selection = draggingLasso ? lassoSelection(st.drag.points)
-      : draggingBox ? boxSelection(st.drag) : st.sel;
+    const selection = draggingLasso
+      ? st.drag.additive ? combineSelections(st.drag.baseSelection, lassoSelection(st.drag.points)) : lassoSelection(st.drag.points)
+      : draggingBox
+        ? st.drag.additive ? combineSelections(st.drag.baseSelection, boxSelection(st.drag)) : boxSelection(st.drag)
+        : st.sel;
     drawSelectionOverlay(selection, draggingLasso);
     if (st.drag) drawDragGhost();
     else if (st.tool === 'erase' && st.hover) drawHover();
@@ -609,6 +612,7 @@ window.ChemEditor = (() => {
     // Xóa mọi vùng bôi đen văn bản còn sót (phòng khi user-select chưa đủ trên vài trình duyệt).
     try { const s = window.getSelection && window.getSelection(); if (s && s.removeAllRanges) s.removeAllRanges(); } catch (err) {}
     const p = toWorld(e);
+    const additiveSelection = e.ctrlKey || e.metaKey;
     if (e.button === 1 || st.tool === 'pan' || st.space) {
       st.drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: st.view.x, vy: st.view.y };
       try { stage.setPointerCapture(e.pointerId); } catch (err) {}
@@ -620,6 +624,14 @@ window.ChemEditor = (() => {
       const textElement = e.target.closest && e.target.closest('[data-tid]');
       const annotation = textElement ? M.textItem(+textElement.getAttribute('data-tid')) : null;
       const hit = annotation ? { type: 'text', id: annotation.id } : hitTest(p);
+      if (additiveSelection) {
+        st.drag = {
+          mode: 'lasso', points: [p], startX: e.clientX, startY: e.clientY,
+          clickSelection: hit, baseSelection: st.sel, additive: true
+        };
+        redraw();
+        return;
+      }
       if (hit) {
         if (!selectionIncludesItem(st.sel, hit.type, hit.id)) st.sel = hit;
         beginSelectionMove(p);
@@ -667,6 +679,23 @@ window.ChemEditor = (() => {
       return;
     }
     if (st.tool === 'select') {
+      if (additiveSelection) {
+        const hit = hitText ? { type: 'text', id: hitText.id }
+          : hitA ? { type: 'atom', id: hitA.id }
+            : hitB ? { type: 'bond', id: hitB.id } : null;
+        if (hit) {
+          st.sel = toggleSelectionItem(st.sel, hit);
+          redraw();
+          hintSelectionCount();
+          return;
+        }
+        st.drag = {
+          mode: 'box', x0: p.x, y0: p.y, x1: p.x, y1: p.y,
+          startX: e.clientX, startY: e.clientY, baseSelection: st.sel, additive: true
+        };
+        redraw();
+        return;
+      }
       if (hitText) {
         if (isSelectedItem('text', hitText.id)) beginSelectionMove(p);
         else {
@@ -690,7 +719,7 @@ window.ChemEditor = (() => {
         }
       } else {
         st.sel = null;
-        st.drag = { mode: 'box', x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+        st.drag = { mode: 'box', x0: p.x, y0: p.y, x1: p.x, y1: p.y, startX: e.clientX, startY: e.clientY };
       }
       redraw(); return;
     }
@@ -838,18 +867,25 @@ window.ChemEditor = (() => {
       if (e.type !== 'pointercancel') {
         const p = toWorld(e), last = d.points[d.points.length - 1];
         const moved = d.points.length > 1 || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 5;
-        if (!moved) st.sel = d.clickSelection;
+        if (!moved) st.sel = d.additive
+          ? d.clickSelection ? toggleSelectionItem(d.baseSelection, d.clickSelection) : d.baseSelection
+          : d.clickSelection;
         else {
           if (Math.hypot(p.x - last.x, p.y - last.y) >= 0.01) d.points.push(p);
-          st.sel = lassoSelection(d.points);
+          const selection = lassoSelection(d.points);
+          st.sel = d.additive ? combineSelections(d.baseSelection, selection) : selection;
         }
-      } else st.sel = null;
+      } else st.sel = d.additive ? d.baseSelection : null;
       redraw(); hintSelectionCount(); return;
     }
     if (d.mode === 'box') {
+      const moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 5;
       const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
       const y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
-      st.sel = boxSelection({ x0, y0, x1, y1 });
+      const selection = moved ? boxSelection({ x0, y0, x1, y1 }) : null;
+      st.sel = d.additive
+        ? moved ? combineSelections(d.baseSelection, selection) : d.baseSelection
+        : selection;
       redraw(); hintSelectionCount(); return;
     }
     if (d.mode === 'chain') {
@@ -936,10 +972,38 @@ window.ChemEditor = (() => {
     }
     return { type: 'multi', ids, bondIds, textIds };
   }
+  function selectionItems(selection) {
+    if (!selection) return { ids: [], bondIds: [], textIds: [] };
+    if (selection.type === 'atom') return { ids: [selection.id], bondIds: [], textIds: [] };
+    if (selection.type === 'bond') return { ids: [], bondIds: [selection.id], textIds: [] };
+    if (selection.type === 'text') return { ids: [], bondIds: [], textIds: [selection.id] };
+    if (selection.type === 'multi') return {
+      ids: selection.ids || [], bondIds: selection.bondIds || [], textIds: selection.textIds || []
+    };
+    return { ids: [], bondIds: [], textIds: [] };
+  }
+  function combineSelections(first, second) {
+    const a = selectionItems(first), b = selectionItems(second);
+    return selectionFromItems(
+      Array.from(new Set([...a.ids, ...b.ids])),
+      Array.from(new Set([...a.bondIds, ...b.bondIds])),
+      Array.from(new Set([...a.textIds, ...b.textIds]))
+    );
+  }
+  function toggleSelectionItem(selection, item) {
+    const items = selectionItems(selection);
+    const key = item.type === 'atom' ? 'ids' : item.type === 'bond' ? 'bondIds' : 'textIds';
+    const ids = new Set(items[key]);
+    if (ids.has(item.id)) ids.delete(item.id);
+    else ids.add(item.id);
+    items[key] = Array.from(ids);
+    return selectionFromItems(items.ids, items.bondIds, items.textIds);
+  }
   // Thông báo số đối tượng vừa được quét chọn (box/lasso/select-all).
   function hintSelectionCount() {
     const sel = st.sel;
-    const n = !sel ? 0 : sel.type === 'multi' ? (sel.ids || []).length : 1;
+    const items = selectionItems(sel);
+    const n = items.ids.length + items.bondIds.length + items.textIds.length;
     if (n) setHint(text(
       'Đã chọn ' + n + ' đối tượng — kéo để di chuyển, nhấn R để xoay, Delete để xóa.',
       'Selected ' + n + ' item' + (n > 1 ? 's' : '') + ' — drag to move, press R to rotate, Delete to remove.'
@@ -985,6 +1049,11 @@ window.ChemEditor = (() => {
       return;
     }
     const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === 'c' && st.sel) {
+      e.preventDefault();
+      window.ChemExport.copyPNG(st.sel);
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? M.redo() : M.undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); M.redo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === 'a') { e.preventDefault(); selectAll(); return; }
@@ -1044,7 +1113,7 @@ window.ChemEditor = (() => {
     stage.style.cursor = t === 'pan' ? 'grab' : t === 'select' && st.selectionMode !== 'lasso' ? 'default' : 'crosshair';
     syncTplButtons(); redraw();
     const tips = {
-      select: text('Nhấn để chọn, kéo vùng để quét chọn nhiều; nhấn đúp nguyên tử để đổi ký hiệu.', 'Click to select, drag a box to select many; double-click an atom to edit its label.'),
+      select: text('Nhấn để chọn, kéo vùng để quét chọn nhiều; Ctrl + kéo để cộng vùng, Ctrl + nhấn để thêm/bỏ đối tượng; Ctrl+C sao chép vùng chọn thành PNG.', 'Click to select or drag a box; Ctrl+drag adds a region, Ctrl+click toggles an item, and Ctrl+C copies the selection as PNG.'),
       pan: text('Kéo để di chuyển khung nhìn; cuộn chuột để phóng to/thu nhỏ (phím 0: vừa khung).', 'Drag to pan; scroll to zoom (key 0: fit to view).'),
       atom: text('Nhấn hoặc kéo trên khung vẽ để đặt "' + st.el + '" và nối liên kết.', 'Click or drag on the canvas to place "' + st.el + '" and bond it.'),
       bond: text('Kéo giữa hai nguyên tử để vẽ liên kết; nhấn 1–5 để đổi loại liên kết.', 'Drag between two atoms to draw a bond; press 1–5 to change the bond type.'),

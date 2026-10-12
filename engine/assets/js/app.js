@@ -402,6 +402,7 @@ window.ChemApp = (() => {
       <tr><td>Middle mouse / Space</td><td>Pan canvas</td></tr>
       <tr><td>Ctrl+Z / Ctrl+Y</td><td>Undo / Redo</td></tr>
       <tr><td>Ctrl+A / Delete</td><td>Select all / Delete object</td></tr>
+      <tr><td>Ctrl + drag / Ctrl + click</td><td>Add a selection region / toggle an item; Ctrl+C copies selected objects as PNG</td></tr>
       <tr><td>G / T / Y / 0 / Esc</td><td>Toggle grid · Switch grid type · Change grid orientation and rotate structures · Fit view · Deselect</td></tr>
       <tr><td>Select atom</td><td>Edit its element/group in Properties (e.g. Fe, OH, COOH); double-click to edit</td></tr>
       <tr><td>Scroll wheel</td><td>Zoom at cursor</td></tr>
@@ -417,6 +418,7 @@ window.ChemApp = (() => {
       <tr><td>Chuột giữa / Space</td><td>Kéo khung nhìn</td></tr>
       <tr><td>Ctrl+Z / Ctrl+Y</td><td>Hoàn tác / Làm lại</td></tr>
       <tr><td>Ctrl+A / Delete</td><td>Chọn tất cả / Xóa đối tượng</td></tr>
+      <tr><td>Ctrl + kéo / Ctrl + nhấn</td><td>Cộng vùng chọn / thêm hoặc bỏ đối tượng; Ctrl+C sao chép vùng chọn thành PNG</td></tr>
       <tr><td>G / T / Y / 0 / Esc</td><td>Bật/tắt lưới · Đổi lưới vuông/tam giác · Đổi hướng trục và xoay cấu trúc 90° · Vừa khung · Bỏ chọn</td></tr>
       <tr><td>Chọn nguyên tử</td><td>Sửa ký hiệu hoặc nhóm ở bảng Thuộc tính (vd Fe, OH, COOH); double-click cũng mở sửa nhanh</td></tr>
       <tr><td>Lăn chuột</td><td>Phóng to / thu nhỏ tại con trỏ</td></tr>

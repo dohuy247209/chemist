@@ -2,10 +2,60 @@
 /* export.js — Xuất file SVG / PNG, sao chép mã SVG, lưu/mở JSON. */
 window.ChemExport = (() => {
   const NS = 'http://www.w3.org/2000/svg';
-  function standaloneSVG() {
+  function selectionItems(selection) {
+    if (!selection) return null;
+    if (selection.type === 'atom') return { atoms: [selection.id], bonds: [], texts: [] };
+    if (selection.type === 'bond') return { atoms: [], bonds: [selection.id], texts: [] };
+    if (selection.type === 'text') return { atoms: [], bonds: [], texts: [selection.id] };
+    if (selection.type === 'multi') return {
+      atoms: selection.ids || [], bonds: selection.bondIds || [], texts: selection.textIds || []
+    };
+    return null;
+  }
+  function selectionBBox(model, items) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const include = (x, y) => {
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    };
+    for (const id of items.atoms) {
+      const atom = model.atom(id);
+      if (atom) include(atom.x, atom.y);
+    }
+    for (const id of items.bonds) {
+      const bond = model.bond(id);
+      if (!bond) continue;
+      const a = model.atom(bond.a), b = model.atom(bond.b);
+      if (a && b) { include(a.x, a.y); include(b.x, b.y); }
+    }
+    for (const id of items.texts) {
+      const annotation = model.textItem(id);
+      if (!annotation) continue;
+      const size = annotation.fontSize || 20;
+      if (annotation.type === 'arrow') {
+        const width = Math.max(annotation.width || 96, Math.max((annotation.above || '').length, (annotation.below || '').length) * size * 0.6);
+        include(annotation.x - width / 2, annotation.y - (annotation.above ? size : 12));
+        include(annotation.x + width / 2, annotation.y + (annotation.below ? size : 12));
+      } else {
+        const width = (annotation.text || '').length * size * 0.6;
+        include(annotation.x - width / 2, annotation.y - size / 2);
+        include(annotation.x + width / 2, annotation.y + size / 2);
+      }
+    }
+    if (!Number.isFinite(x0)) throw new Error('The selected objects are no longer available.');
+    const padding = 36;
+    return {
+      x: x0 - padding, y: y0 - padding,
+      w: Math.max(10, x1 - x0 + padding * 2),
+      h: Math.max(10, y1 - y0 + padding * 2)
+    };
+  }
+  function standaloneSVG(selection) {
     const M = window.ChemModel, R = window.ChemRender;
     const world = document.getElementById('world');
-    const box = M.bbox(36) || { x: -200, y: -150, w: 400, h: 300 };
+    const items = selection === undefined ? null : selectionItems(selection);
+    if (selection !== undefined && !items) throw new Error('The selection cannot be exported.');
+    const box = items ? selectionBBox(M, items) : M.bbox(36) || { x: -200, y: -150, w: 400, h: 300 };
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('xmlns', NS);
     svg.setAttribute('viewBox', `${r1(box.x)} ${r1(box.y)} ${r1(box.w)} ${r1(box.h)}`);
@@ -24,6 +74,28 @@ window.ChemExport = (() => {
     const src = world.cloneNode(true);
     // Bỏ các phần hiển thị tạm thời: vùng chọn, nét hit vô hình, vòng chọn.
     src.querySelectorAll('.sel-ring, .valence-warning, .hit, .handle, circle[fill="rgba(0,0,0,0)"]').forEach(n => n.remove());
+    if (items) {
+      const atomIds = new Set(items.atoms.map(String));
+      const bondIds = new Set(items.bonds.map(String));
+      const textIds = new Set(items.texts.map(String));
+      src.querySelectorAll('[data-aid]').forEach(node => {
+        if (!atomIds.has(node.getAttribute('data-aid'))) node.remove();
+      });
+      src.querySelectorAll('[data-bid]').forEach(node => {
+        if (!bondIds.has(node.getAttribute('data-bid'))) node.remove();
+      });
+      src.querySelectorAll('[data-tid]').forEach(node => {
+        if (!textIds.has(node.getAttribute('data-tid'))) node.remove();
+      });
+      const selectedAtoms = new Set(items.atoms);
+      src.querySelectorAll('[data-ring-id]').forEach(node => {
+        const ring = M.S.rings.find(item => String(item.id) === node.getAttribute('data-ring-id'));
+        const ringAtoms = ring && Array.isArray(ring.atoms) && ring.atoms.length
+          ? ring.atoms
+          : ring ? M.S.atoms.filter(atom => Math.abs(Math.hypot(atom.x - ring.cx, atom.y - ring.cy) - ring.r) < 6).map(atom => atom.id) : [];
+        if (!ringAtoms.length || !ringAtoms.every(id => selectedAtoms.has(id))) node.remove();
+      });
+    }
     g.innerHTML = src.innerHTML
       .replace(/ class="(bond|atom-dot|atom-label|arom-circle|canvas-text)"/g, '')
       .replace(/ data-[a-z]+="[^"]*"/g, '');
@@ -39,8 +111,8 @@ window.ChemExport = (() => {
   function notify(vi, en) {
     if (window.ChemApp) window.ChemApp.toast(message(vi, en));
   }
-  function renderPNGBlob(scale) {
-    const { code, box } = standaloneSVG();
+  function renderPNGBlob(scale, selection) {
+    const { code, box } = standaloneSVG(selection);
     const k = scale || 3;
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -106,13 +178,13 @@ window.ChemExport = (() => {
       notify('Xuất PNG thất bại trên trình duyệt này.', 'PNG export failed in this browser.');
     });
   }
-  function copyPNG() {
+  function copyPNG(selection) {
     if (!navigator.clipboard || !navigator.clipboard.write || !window.ClipboardItem) {
       notify('Trình duyệt không hỗ trợ sao chép ảnh vào clipboard.', 'This browser does not support copying images to the clipboard.');
       return;
     }
     try {
-      const png = renderPNGBlob(3);
+      const png = renderPNGBlob(3, selection);
       navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]).then(() => {
         notify('Đã sao chép ảnh PNG — bạn có thể dán vào ứng dụng khác.', 'PNG image copied — you can paste it into another app.');
       }).catch(error => {
