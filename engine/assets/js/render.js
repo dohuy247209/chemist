@@ -16,18 +16,32 @@ window.ChemRender = (() => {
     while ((m = re.exec(elName))) parts.push({ t: m[1], sub: /^\d+$/.test(m[1]) });
     return parts.length ? parts : [{ t: elName, sub: false }];
   }
+  // Chỉ số dưới/ở trên: dùng dy (user-unit, TÍCH LŨY giữa các tspan) thay cho
+  // baseline-shift — thuộc tính đó không nhất quán giữa các trình duyệt và khi
+  // raster SVG xuất PNG qua <img> nên trang hiển thị có thể khác ảnh xuất ra.
+  // dy tuyệt đối luôn cho cùng kết quả ở mọi nơi. Vì dy của tspan là cộng dồn,
+  // mỗi tspan phải bù trừ phần tspan trước đã dịch: muốn đặt tại bậc `want`
+  // thì dy = want − bậc đã dịch của tspan đứng trước.
+  function scriptOffset(script, fontSize) {
+    return (script === 'sub' ? 1 : -1) * Math.round(fontSize * 0.3);
+  }
   function drawLabel(g, a, font) {
     const M = window.ChemModel;
     const shiny = document.getElementById('stage').classList.contains('shiny');
     const t = el('text', { x: a.x, y: a.y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'class': 'atom-label', 'font-family': 'Arial, sans-serif', 'font-size': font, fill: a.color || M.elColor(a.el), stroke: shiny ? 'none' : pal().halo, 'stroke-width': shiny ? 0 : 4, 'paint-order': 'stroke', 'data-aid': a.id }, g);
     const parts = a.latex ? textTokens(a.el, true) : labelParts(a.el).map(part => ({ text: part.t, script: part.sub ? 'sub' : null }));
+    let carry = 0;
     for (const p of parts) {
       const ts = el('tspan', {}, t);
       ts.textContent = p.text;
+      let want = 0;
       if (p.script) {
         ts.setAttribute('font-size', Math.round(font * 0.7));
-        ts.setAttribute('baseline-shift', p.script === 'sub' ? 'sub' : 'super');
+        want = scriptOffset(p.script, font);
       }
+      const dy = want - carry;
+      if (dy) ts.setAttribute('dy', dy);
+      carry = want;
     }
     return t;
   }
@@ -100,13 +114,18 @@ window.ChemRender = (() => {
         : [{ text: part }]);
   }
   function drawTextContent(element, value, latex, fontSize) {
+    let carry = 0;
     for (const segment of textTokens(value, latex)) {
       const span = el('tspan', {}, element);
       span.textContent = segment.text;
+      let want = 0;
       if (segment.script) {
         span.setAttribute('font-size', Math.round(fontSize * 0.7));
-        span.setAttribute('baseline-shift', segment.script === 'sub' ? 'sub' : 'super');
+        want = scriptOffset(segment.script, fontSize);
       }
+      const dy = want - carry;
+      if (dy) span.setAttribute('dy', dy);
+      carry = want;
     }
   }
   function drawArrow(world, annotation, ink) {
@@ -145,8 +164,19 @@ window.ChemRender = (() => {
   function trims(A, B, font, length) {
     const M = window.ChemModel;
     const need = a => !M.isBareCarbon(a);
-    const w = s => s.length > 2 ? font * Math.min(4, s.length * 0.32) : font * 0.62;
-    const result = [need(A) ? w(A.el) : 1.5, need(B) ? w(B.el) : 1.5];
+    // Ước bề rộng THẬT của nhãn: chỉ tính ký tự HIỂN THỊ. Nhãn LaTeX "H_{2}O"
+    // dài 7 ký tự thô nhưng chỉ hiện "H2O" (3 ký tự, số co 0.7 cỡ chữ) — đo theo
+    // s.length thô sẽ tạo khoảng hở quá lớn giữa đầu liên kết và nhãn.
+    const units = a => {
+      const parts = a.latex
+        ? textTokens(a.el, true)
+        : labelParts(a.el).map(part => ({ text: part.t, script: part.sub ? 'sub' : null }));
+      let sum = 0;
+      for (const part of parts) sum += part.text.length * (part.script ? 0.7 : 1);
+      return sum;
+    };
+    const w = a => font * Math.min(4, Math.max(0.62, units(a) * 0.32));
+    const result = [need(A) ? w(A) : 1.5, need(B) ? w(B) : 1.5];
     const maxTrim = length * 0.75;
     const total = result[0] + result[1];
     if (total > maxTrim) {

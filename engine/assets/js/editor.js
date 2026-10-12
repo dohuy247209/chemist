@@ -1094,6 +1094,11 @@ window.ChemEditor = (() => {
     }
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 'c' && st.sel) {
+      // Đang bôi đen chữ ở nơi khác (vd mã SVG trong <pre id="svgCode">) → để
+      // trình duyệt sao chép CHỮ, không chặn về copy PNG.
+      const sel = window.getSelection ? window.getSelection() : null;
+      const marked = sel && typeof sel.toString === 'function' ? String(sel.toString()) : '';
+      if (marked) return;
       e.preventDefault();
       window.ChemExport.copyPNG(st.sel);
       return;

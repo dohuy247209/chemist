@@ -123,6 +123,8 @@ window.ChemModel = (() => {
   const MAX_VALENCE = Object.freeze({
     H: 1, B: 3, C: 4, N: 3, 'N⁺': 4, 'N⁻': 3, O: 2, 'O⁺': 3, 'O⁻': 1,
     F: 1, Si: 4, P: 5, S: 6, Cl: 1, Se: 6, Br: 1, I: 1,
+    // Ion thường gặp còn thiếu; bản gõ ASCII (N+, O-, B-…) được chuẩn hoá khi tra.
+    'C⁺': 3, 'S⁺': 3, 'P⁺': 4, 'B⁻': 4,
     // Kim loại nhóm chính (main-group metals).
     Li: 1, Na: 1, K: 1, Rb: 1, Cs: 1, Fr: 1,
     Be: 2, Mg: 2, Ca: 2, Sr: 2, Ba: 2, Ra: 2,
@@ -140,6 +142,22 @@ window.ChemModel = (() => {
     CN: 1, OCH3: 1, CH3: 1, CH2: 1, NH: 1, NH3: 1, SO3H: 1,
     PO4: 1, SO2: 1, C2H5: 1
   });
+  // Chuẩn hoá điện tích để ion gõ tay tra đúng bảng MAX_VALENCE:
+  //  - bản ASCII: "N+", "O-", "B-" → superscript ("N⁺", …);
+  //  - bản LaTeX: "N^{+}", "N^+", "O^{-}" → gỡ ngoặc nhọn của chỉ số trước;
+  //  - chuỗi không có dấu +/- ở cuối giữ nguyên (không có trong bảng thì vẫn
+  //    không kiểm tra — không đoán mò, tránh cảnh báo oan như "NH_{2}").
+  const normCharge = el => {
+    if (typeof el !== 'string' || el.length < 2) return el;
+    const s = el.replace(/[\^_]\{?([+-]+)\}?$/, '$1');
+    if (!/[+-]$/.test(s)) return el;
+    return s.slice(0, -1) + (s.endsWith('+') ? '⁺' : '⁻');
+  };
+  // Hóa trị tối đa cho phép của một nguyên tố/nhóm (null nếu không kiểm tra).
+  const maxValence = el => {
+    const key = normCharge(el);
+    return Object.prototype.hasOwnProperty.call(MAX_VALENCE, key) ? MAX_VALENCE[key] : null;
+  };
   // Tập id các liên kết được coi là "đôi" trong cấu trúc Kekulé của hệ thơm.
   // Dùng dblIds do template/vòng cung cấp thay vì xấp xỉ 1.5 cho mỗi cạnh thơm,
   // nhờ đó tính đúng hóa trị cho cả vòng đơn lẻ lẫn vòng ghép (fused rings).
@@ -173,7 +191,10 @@ window.ChemModel = (() => {
       valence.set(bond.b, (valence.get(bond.b) || 0) + order);
     }
     return S.atoms
-      .filter(atom => MAX_VALENCE[atom.el] != null && (valence.get(atom.id) || 0) > MAX_VALENCE[atom.el])
+      .filter(atom => {
+        const max = maxValence(atom.el);
+        return max != null && (valence.get(atom.id) || 0) > max;
+      })
       .map(atom => atom.id);
   }
   // Tổng hóa trị (tổng bậc liên kết, tính cả cạnh đôi Kekulé) của một nguyên tử.
@@ -186,8 +207,6 @@ window.ChemModel = (() => {
     }
     return total;
   }
-  // Hóa trị tối đa cho phép của một nguyên tố/nhóm (null nếu không kiểm tra).
-  const maxValence = el => (Object.prototype.hasOwnProperty.call(MAX_VALENCE, el) ? MAX_VALENCE[el] : null);
   const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
   function nearAtom(p, tol) { let best = null, bd = tol || 14; for (const a of S.atoms) { const d = dist(p, a); if (d < bd) { bd = d; best = a; } } return best; }
   function nearBond(p, tol) {
@@ -215,6 +234,11 @@ window.ChemModel = (() => {
   };
   const isBareCarbon = a => a.el === 'C' && degree(a.id) > 0;
   function serialize(space) { return JSON.stringify({ app: 'chemistry-workspace', v: 1, atoms: S.atoms, bonds: S.bonds, rings: S.rings, texts: S.texts }, null, space === undefined ? 2 : space); }
+  // Tải bản vẽ từ JSON. Một bản ghi hỏng (toạ độ NaN, tham chiếu nguyên tử
+  // không tồn tại, id trùng, chú thích thiếu id…) KHÔNG làm từ chối cả tệp:
+  // bản ghi đó bị bỏ qua và đếm lại qua kết quả { dropped } để UI báo cho người
+  // dùng. Chỉ ném lỗi khi cấu trúc chung không phải một bản vẽ (JSON hỏng /
+  // atoms-bonds không phải mảng) — trường hợp đó không cứu được gì.
   function deserialize(j) {
     const o = JSON.parse(j);
     if (!o || typeof o !== 'object' || Array.isArray(o) ||
@@ -227,70 +251,88 @@ window.ChemModel = (() => {
     const bonds = o.bonds.map(item => item && typeof item === 'object'
       ? Object.assign({ order: 1, style: 'solid', arom: false, dbl: false }, item)
       : item);
+    let dropped = 0;
 
+    // Cấp id MỚI cho bản ghi thiếu/trùng id mà không bị bản ghi khác tham chiếu
+    // theo id (chú thích, vòng, liên kết). Nguyên tử phải giữ đúng id vì liên kết
+    // tham chiếu tới nó, nên id nguyên tử hỏng/trùng → bỏ bản ghi đó.
     const ids = new Set();
-    const registerId = id => {
-      if (!Number.isSafeInteger(id) || id < 1 || ids.has(id)) throw new Error('ID đối tượng không hợp lệ hoặc bị trùng');
-      ids.add(id);
+    let idCursor = 0;
+    const scan = list => list.forEach(item => {
+      if (item && Number.isSafeInteger(item.id) && item.id > idCursor) idCursor = item.id;
+    });
+    scan(o.atoms); scan(bonds); scan(rings); scan(texts);
+    idCursor += 1;
+    const claimId = preferred => {
+      if (Number.isSafeInteger(preferred) && preferred >= 1 && !ids.has(preferred)) {
+        ids.add(preferred);
+        return preferred;
+      }
+      while (ids.has(idCursor)) idCursor += 1;
+      ids.add(idCursor);
+      return idCursor;
     };
+
+    const atoms = [];
     for (const atom of o.atoms) {
       if (!atom || typeof atom !== 'object' || !Number.isSafeInteger(atom.id) ||
-          !Number.isFinite(atom.x) || !Number.isFinite(atom.y) ||
-          typeof atom.el !== 'string' || !atom.el.trim()) throw new Error('Nguyên tử không hợp lệ');
-      registerId(atom.id);
+          ids.has(atom.id) || !Number.isFinite(atom.x) || !Number.isFinite(atom.y) ||
+          typeof atom.el !== 'string' || !atom.el.trim()) { dropped += 1; continue; }
+      ids.add(atom.id);
+      atoms.push(atom);
     }
-    const atomIds = new Set(o.atoms.map(atom => atom.id));
-    const bondIds = new Set();
+    const atomIds = new Set(atoms.map(atom => atom.id));
+    const keptBonds = [];
     for (const item of bonds) {
-      if (!item || typeof item !== 'object' || !Number.isSafeInteger(item.id) ||
+      if (!item || typeof item !== 'object' ||
+          !Number.isSafeInteger(item.a) || !Number.isSafeInteger(item.b) ||
           !atomIds.has(item.a) || !atomIds.has(item.b) || item.a === item.b ||
           !Number.isInteger(item.order) || item.order < 1 || item.order > 3 ||
-          !['solid', 'wedge', 'hash'].includes(item.style)) throw new Error('Liên kết không hợp lệ hoặc tham chiếu nguyên tử không tồn tại');
-      registerId(item.id);
-      bondIds.add(item.id);
+          !['solid', 'wedge', 'hash'].includes(item.style)) { dropped += 1; continue; }
+      item.id = claimId(item.id);
+      keptBonds.push(item);
     }
+    const bondIds = new Set(keptBonds.map(item => item.id));
+    const keptRings = [];
     for (const ring of rings) {
       if (!ring || typeof ring !== 'object' || !Number.isFinite(ring.cx) ||
-          !Number.isFinite(ring.cy) || !Number.isFinite(ring.r) || ring.r <= 0) {
-        throw new Error('Vòng không hợp lệ');
+          !Number.isFinite(ring.cy) || !Number.isFinite(ring.r) || ring.r <= 0 ||
+          (ring.atoms !== undefined &&
+            (!Array.isArray(ring.atoms) || ring.atoms.length < 3 ||
+              ring.atoms.some(id => !atomIds.has(id)))) ||
+          (ring.dblIds !== undefined && !Array.isArray(ring.dblIds))) { dropped += 1; continue; }
+      if (ring.dblIds !== undefined) {
+        const valid = ring.dblIds.filter(id => bondIds.has(id));
+        if (valid.length !== ring.dblIds.length) dropped += 1;   // tham chiếu lỗi → bỏ phần sai
+        ring.dblIds = valid;
       }
-      if (ring.id !== undefined) registerId(ring.id);
-      if (ring.atoms !== undefined &&
-          (!Array.isArray(ring.atoms) || ring.atoms.length < 3 || ring.atoms.some(id => !atomIds.has(id)))) {
-        throw new Error('Vòng tham chiếu nguyên tử không tồn tại');
-      }
-      if (ring.dblIds !== undefined &&
-          (!Array.isArray(ring.dblIds) || ring.dblIds.some(id => !bondIds.has(id)))) {
-        throw new Error('Vòng tham chiếu liên kết không tồn tại');
-      }
+      if (ring.id !== undefined) ring.id = claimId(ring.id);
+      keptRings.push(ring);
     }
-    const normalizedTexts = texts.map(item => {
-      if (!item || typeof item !== 'object') throw new Error('Chú thích không hợp lệ');
+    const normalizedTexts = [];
+    for (const item of texts) {
+      if (!item || typeof item !== 'object') { dropped += 1; continue; }
       const type = item.type || (item.arrowType || item.above || item.below ? 'arrow' : 'text');
-      if (type !== 'text' && type !== 'arrow') throw new Error('Loại chú thích không hợp lệ');
+      if (type !== 'text' && type !== 'arrow') { dropped += 1; continue; }
       if (!Number.isFinite(item.x) || !Number.isFinite(item.y) ||
-          !Number.isFinite(item.fontSize || 20) || (item.fontSize || 20) <= 0) {
-        throw new Error('Vị trí hoặc cỡ chữ của chú thích không hợp lệ');
-      }
-      registerId(item.id);
+          !Number.isFinite(item.fontSize || 20) || (item.fontSize || 20) <= 0) { dropped += 1; continue; }
       if (type === 'arrow') {
-        if (item.arrowType !== undefined && !['forward', 'equilibrium'].includes(item.arrowType)) {
-          throw new Error('Loại mũi tên không hợp lệ');
-        }
-        if (item.width !== undefined && (!Number.isFinite(item.width) || item.width <= 0)) {
-          throw new Error('Độ rộng mũi tên không hợp lệ');
-        }
-        if ((item.above !== undefined && typeof item.above !== 'string') ||
-            (item.below !== undefined && typeof item.below !== 'string')) throw new Error('Nhãn mũi tên không hợp lệ');
-        return Object.assign({ type, fontSize: 20, width: 96, arrowType: 'forward', above: '', below: '', latex: false }, item);
+        if ((item.arrowType !== undefined && !['forward', 'equilibrium'].includes(item.arrowType)) ||
+            (item.width !== undefined && (!Number.isFinite(item.width) || item.width <= 0)) ||
+            (item.above !== undefined && typeof item.above !== 'string') ||
+            (item.below !== undefined && typeof item.below !== 'string')) { dropped += 1; continue; }
+        normalizedTexts.push(Object.assign({ type, fontSize: 20, width: 96, arrowType: 'forward', above: '', below: '', latex: false }, item));
+        continue;
       }
-      if (typeof item.text !== 'string') throw new Error('Nội dung chú thích không hợp lệ');
-      return Object.assign({ type, fontSize: 20, latex: false }, item);
-    });
+      if (typeof item.text !== 'string') { dropped += 1; continue; }
+      normalizedTexts.push(Object.assign({ type, fontSize: 20, latex: false }, item));
+    }
+    // Chú thích thiếu id (bản ghi cũ / sửa tay) → cấp id mới thay vì ném lỗi.
+    for (const item of normalizedTexts) item.id = claimId(item.id);
 
-    S.atoms = o.atoms;
-    S.bonds = bonds;
-    S.rings = rings;
+    S.atoms = atoms;
+    S.bonds = keptBonds;
+    S.rings = keptRings;
     S.texts = normalizedTexts;
     // Bản vẽ cũ: metadata đường dạng {name,cx,cy} không có gid/idx sẽ làm nút α/β
     // hoạt động sai (hoặc không hoạt động). Xoá để panel không hiện nút hỏng.
@@ -300,6 +342,7 @@ window.ChemModel = (() => {
     S.seq = maxId + 1;
     clearHist();
     emit('open');
+    return { dropped };
   }
   function bbox(pad) {
     if (!S.atoms.length && !S.texts.length) return null; const p = pad == null ? 30 : pad;

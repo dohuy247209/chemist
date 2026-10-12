@@ -90,15 +90,108 @@ window.ChemExport = (() => {
     if (!Number.isFinite(x0)) return null;
     return { x0, y0, x1, y1 };
   }
+  // Đo hộp THẬT của phần tử đang vẽ trong #world bằng getBBox() — chính xác với
+  // nhãn nguyên tử ở rìa, vòng tròn thơm, nét đậm và chú thích LaTeX (cách ước
+  // lượng theo toạ độ tâm + length×size×0.6 bị cắt với lề nhỏ 0–10px). Bỏ qua
+  // phần tử bắt chuột vô hình (.hit, vòng tròn trong suốt…) vì chúng luôn rộng
+  // hơn nội dung thật (~12px mỗi đầu). Trả về null khi không đo được (thiếu
+  // getBBox / ném lỗi / không có phần tử) → caller giữ cách ước lượng cũ.
+  function domExtent(model, items) {
+    const world = document.getElementById('world');
+    if (!world || typeof world.querySelectorAll !== 'function') return null;
+    const skipped = node => {
+      const cls = (node.getAttribute && node.getAttribute('class')) || '';
+      if (/\b(hit|sel-ring|valence-warning|handle)\b/.test(cls)) return true;
+      const tag = String(node.tagName || node.nodeName || '').toLowerCase();
+      return tag === 'circle' && node.getAttribute && node.getAttribute('fill') === 'rgba(0,0,0,0)';
+    };
+    const merge = (a, b) => ({
+      x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0),
+      x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1)
+    });
+    // Hợp nhất CON cái (trừ phần tử bắt chuột) trước — đo thẳng getBBox() trên
+    // <g data-bid> sẽ lấy cả nét hit vô hình, hộp rộng hơn nội dung xuất ra.
+    const boxOf = node => {
+      if (!node || skipped(node)) return null;
+      let box = null;
+      const kids = node.children;
+      if (kids && kids.length) {
+        for (let i = 0; i < kids.length; i++) {
+          const kb = boxOf(kids[i]);
+          if (kb) box = box ? merge(box, kb) : kb;
+        }
+        if (box) return box;
+      }
+      if (typeof node.getBBox !== 'function') return null;
+      let bb = null;
+      try { bb = node.getBBox(); } catch (error) { return null; }
+      if (!bb || ![bb.x, bb.y, bb.width, bb.height].every(Number.isFinite)) return null;
+      if (bb.width === 0 && bb.height === 0) return null;
+      return { x0: bb.x, y0: bb.y, x1: bb.x + bb.width, y1: bb.y + bb.height };
+    };
+    const attr = (node, name) => (node.getAttribute && node.getAttribute(name)) || null;
+    const atomSet = new Set(((items && items.atoms) || model.S.atoms.map(a => a.id)).map(String));
+    const bondSet = new Set(((items && items.bonds) || model.S.bonds.map(b => b.id)).map(String));
+    const textSet = new Set(((items && items.texts) || model.S.texts.map(t => t.id)).map(String));
+    const included = node => {
+      if (!items) return true;
+      const aid = attr(node, 'data-aid');
+      if (aid != null) return atomSet.has(aid);
+      const bid = attr(node, 'data-bid');
+      if (bid != null) return bondSet.has(bid);
+      const tid = attr(node, 'data-tid');
+      if (tid != null) return textSet.has(tid);
+      const rid = attr(node, 'data-ring-id');
+      if (rid != null) {
+        // Cùng điều kiện standaloneSVG giữ vòng: MỌI nguyên tử của vòng phải
+        // nằm trong vùng chọn.
+        const ring = model.S.rings.find(r => String(r.id) === rid);
+        if (!ring) return false;
+        const ringAtoms = Array.isArray(ring.atoms) && ring.atoms.length
+          ? ring.atoms
+          : model.S.atoms.filter(a => Math.abs(Math.hypot(a.x - ring.cx, a.y - ring.cy) - ring.r) < 6).map(a => a.id);
+        return ringAtoms.length > 0 && ringAtoms.every(id => atomSet.has(String(id)));
+      }
+      // Không gắn data-* (vd đường mũi tên chú thích) — standaloneSVG cũng giữ
+      // nên tính cả khi có vùng chọn.
+      return true;
+    };
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const candidates = Array.from(world.querySelectorAll('[data-aid],[data-bid],[data-tid],[data-ring-id]'));
+    // Đường mũi tên chú thích được vẽ trực tiếp dưới #world, không có data-*.
+    const kids = world.children;
+    if (kids) {
+      for (let i = 0; i < kids.length; i++) {
+        const tag = String(kids[i].tagName || kids[i].nodeName || '').toLowerCase();
+        if (tag === 'line') candidates.push(kids[i]);
+      }
+    }
+    for (const node of candidates) {
+      if (!included(node) || skipped(node)) continue;
+      const box = boxOf(node);
+      if (!box) continue;
+      if (box.x0 < x0) x0 = box.x0;
+      if (box.y0 < y0) y0 = box.y0;
+      if (box.x1 > x1) x1 = box.x1;
+      if (box.y1 > y1) y1 = box.y1;
+    }
+    if (!Number.isFinite(x0) || !Number.isFinite(x1) || x1 < x0 || y1 < y0) return null;
+    return { x0, y0, x1, y1 };
+  }
   // Hộp sẽ được xuất cho một lựa chọn (selection === undefined ⇒ toàn khung).
   // Dùng cho cả overlay xem trước trên canvas và standaloneSVG.
   function exportFrame(selection) {
     const M = window.ChemModel;
     const m = margins();
     const items = selection === undefined ? null : selectionItems(selection);
+    // Ưu tiên đo getBBox() thật; không đo được → rơi về ước lượng theo toạ độ
+    // tâm như trước đây (phương án dự phòng).
+    let ext = null;
+    try { ext = domExtent(M, items); } catch (error) { ext = null; }
+    if (ext) return boxFromExtent(ext, m);
     if (items) return boxFromExtent(selectionExtent(M, items), m);
-    const ext = fullExtent(M) || { x0: -200, y0: -150, x1: 200, y1: 150 };
-    return boxFromExtent(ext, m);
+    const full = fullExtent(M) || { x0: -200, y0: -150, x1: 200, y1: 150 };
+    return boxFromExtent(full, m);
   }
   function standaloneSVG(selection) {
     const M = window.ChemModel, R = window.ChemRender;

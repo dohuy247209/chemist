@@ -7,6 +7,9 @@ window.ChemApp = (() => {
   const SETTINGS_KEY = 'chem-editor-settings';
   const AUTOSAVE_KEY = 'chem-editor-draft-v1';
   const AUTOSAVE_LATEST_KEY = `${AUTOSAVE_KEY}:latest`;
+  // Bản sao bản nháp bị hỏng: khoá chính sẽ bị lần chỉnh sửa sau ghi đè nên
+  // phải sang bên đây trước, để người dùng còn cứu lại được dữ liệu.
+  const DRAFT_BACKUP_KEY = `${AUTOSAVE_KEY}:backup`;
   function getTabAutosaveKey() {
     try {
       const tabIdKey = `${AUTOSAVE_KEY}:tab-id`;
@@ -662,13 +665,52 @@ window.ChemApp = (() => {
     if (u) { u.style.opacity = M.canUndo() ? 1 : .35; u.disabled = !M.canUndo(); }
     if (r) { r.style.opacity = M.canRedo() ? 1 : .35; r.disabled = !M.canRedo(); }
   }
+  let quotaWarned = false;
   function persistDraft() {
     try {
       localStorage.setItem(TAB_AUTOSAVE_KEY, M.serialize(0));
       localStorage.setItem(AUTOSAVE_LATEST_KEY, TAB_AUTOSAVE_KEY);
+      // Dấu thời gian cho bản nháp của tab này — pruneDrafts() dọn bản cũ theo nó.
+      localStorage.setItem(`${TAB_AUTOSAVE_KEY}:t`, String(Date.now()));
     }
-    catch (error) { console.warn('Unable to autosave the current drawing.', error); }
+    catch (error) {
+      console.warn('Unable to autosave the current drawing.', error);
+      // Báo NGAY lần đầu lỗi lưu (bộ nhớ đầy): nếu im lặng thì người dùng không
+      // biết bản vẽ không còn được tự động lưu và sẽ mất công sức lúc đóng tab.
+      if (!quotaWarned && error && (error.name === 'QuotaExceededError' || error.code === 22)) {
+        quotaWarned = true;
+        toast(text('⚠ Bộ nhớ trình duyệt đầy — bản vẽ KHÔNG còn được tự động lưu. Hãy "Lưu dự án (.json)" để tránh mất dữ liệu.', '⚠ Browser storage is full — your drawing is NO LONGER autosaved. Use "Save project (.json)" to avoid losing data.'));
+      }
+    }
   }
+  // Dọn bản nháp của các tab/phiên cũ: giữ `keep` bản MỚI NHẤT và xoá mọi bản
+  // quá `maxAgeDays` — tab HIỆN TẠI không bao giờ bị xoá (kể cả khi quá hạn).
+  // Chỉ bản nháp CÓ dấu thời gian (`:t`) mới được dọn; các bản lưu trước khi
+  // thêm dấu thời gian được giữ lại (không đoán mò xoá nhầm).
+  function pruneDrafts(keep = 5, maxAgeDays = 14) {
+    try {
+      const drafts = [];
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(`${AUTOSAVE_KEY}:`) && k.endsWith(':t')) {
+          drafts.push({ key: k.slice(0, -2), t: +localStorage.getItem(k) || 0 });
+        }
+      }
+      drafts.sort((a, b) => b.t - a.t);
+      drafts.forEach((d, i) => {
+        if (d.key === TAB_AUTOSAVE_KEY) return;
+        if (i >= keep || Date.now() - d.t > maxAgeDays * 864e5) {
+          localStorage.removeItem(d.key);
+          localStorage.removeItem(`${d.key}:t`);
+        }
+      });
+    }
+    catch (error) { console.warn('Unable to prune old autosaved drafts.', error); }
+  }
+  // Khôi phục bản nháp tự động lưu. Trả về { ok, dropped, backedUp }:
+  //  - ok: đã tải được (phần bản ghi tốt nhất); dropped = số bản ghi hỏng bị bỏ.
+  //  - backedUp: JSON hỏng → bản nháp được sao lưu sang khoá riêng TRƯỚC khi
+  //    lần chỉnh sửa sau ghi đè khoá chính, để không mất dữ liệu có thể cứu.
   function restoreDraft() {
     let draft;
     try {
@@ -683,15 +725,17 @@ window.ChemApp = (() => {
     }
     catch (error) {
       console.warn('Unable to read the autosaved drawing.', error);
-      return false;
+      return { ok: false, dropped: 0, backedUp: false };
     }
-    if (!draft) return false;
+    if (!draft) return { ok: false, dropped: 0, backedUp: false };
     try {
-      M.deserialize(draft);
-      return true;
+      const result = M.deserialize(draft);
+      return { ok: true, dropped: (result && result.dropped) || 0, backedUp: false };
     } catch (error) {
-      console.warn('Unable to restore the autosaved drawing.', error);
-      return false;
+      try { localStorage.setItem(DRAFT_BACKUP_KEY, draft); }
+      catch (ignored) { /* localStorage đầy — đành chịu, vẫn còn console.warn */ }
+      console.warn('Unable to restore the autosaved drawing (a backup copy was kept).', error);
+      return { ok: false, dropped: 0, backedUp: true };
     }
   }
   function refreshLanguage() {
@@ -732,7 +776,12 @@ window.ChemApp = (() => {
   // ---------- Nối sự kiện ----------
   function init() {
     restoreSettings();
-    const restoredDraft = restoreDraft();
+    const draftState = restoreDraft();
+    // Dọn bản nháp tab cũ TRƯỚC khi ghi bản vừa khôi phục sang khoá của TAB NÀY
+    // — nội dung đã nằm trong bộ nhớ nên dù nguồn bị dọn, persistDraft bên dưới
+    // sẽ lưu lại ngay, không mất dữ liệu.
+    pruneDrafts();
+    if (draftState.ok) persistDraft();
     T.renderLibraries('');
     updateSugarBtn(T.getSugarLayout());
     // Cập nhật panel thuộc tính + nút undo mỗi lần redraw (khi selection đổi).
@@ -756,7 +805,7 @@ window.ChemApp = (() => {
     // toolbar hoặc phím tắt (G/T/Y, bắt điểm) — trước đây các thao tác này
     // không gọi saveSettings nên cài đặt lưới bị mất sau khi tải lại trang.
     Ed.setSettingsObserver(() => { syncGridSettingsPanel(); saveSettings(); });
-    if (restoredDraft) Ed.fitView();
+    if (draftState.ok) Ed.fitView();
     updateProps(); updateUndoBtns();
     M.onChange(() => { persistDraft(); updateProps(); updateUndoBtns(); });
 
@@ -855,7 +904,14 @@ window.ChemApp = (() => {
       const file = e.target.files[0]; if (!file) return;
       const rd = new FileReader();
       rd.onload = () => {
-        try { M.deserialize(rd.result); Ed.redraw(); Ed.fitView(); toast(text('Đã mở "' + file.name + '" ✓', 'Opened "' + file.name + '" ✓')); }
+        try {
+          const result = M.deserialize(rd.result);
+          Ed.redraw(); Ed.fitView();
+          const skipped = result && result.dropped
+            ? text(` (bỏ qua ${result.dropped} bản ghi hỏng)`, ` (${result.dropped} damaged record(s) skipped)`)
+            : '';
+          toast(text('Đã mở "' + file.name + '" ✓', 'Opened "' + file.name + '" ✓') + skipped);
+        }
         catch (err) { toast(text('Lỗi: ' + err.message, 'Error: ' + err.message)); }
       };
       rd.readAsText(file);
@@ -884,9 +940,13 @@ window.ChemApp = (() => {
       if (f) readAvatar(f);
       e.target.value = '';
     });
-    toast(restoredDraft
-      ? text('Đã khôi phục bản vẽ tự động lưu trên thiết bị này.', 'Restored the drawing autosaved on this device.')
-      : text('Sẵn sàng — bản vẽ tự động lưu trên thiết bị này.', 'Ready — drawings are autosaved on this device.'));
+    toast(draftState.backedUp
+      ? text(`Không tải được bản nháp (JSON hỏng) — đã giữ bản sao trong khoá "${DRAFT_BACKUP_KEY}" để không mất dữ liệu.`, `Could not load the draft (broken JSON) — a copy was kept under the "${DRAFT_BACKUP_KEY}" key so no data is lost.`)
+      : draftState.ok
+        ? (draftState.dropped
+          ? text(`Đã khôi phục bản vẽ — bỏ qua ${draftState.dropped} bản ghi hỏng.`, `Draft restored — ${draftState.dropped} damaged record(s) skipped.`)
+          : text('Đã khôi phục bản vẽ tự động lưu trên thiết bị này.', 'Restored the drawing autosaved on this device.'))
+        : text('Sẵn sàng — bản vẽ tự động lưu trên thiết bị này.', 'Ready — drawings are autosaved on this device.'));
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
