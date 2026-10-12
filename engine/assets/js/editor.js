@@ -8,6 +8,71 @@ window.ChemEditor = (() => {
     tpl: null, tplRotation: 0, tplRotateAt: 0, sel: null, snap: true, grid: true, gridType: 'square', gridOrientation: 'horizontal', space: false,
     view: { x: 0, y: 0, k: 1 }, drag: null, hover: null, changed: false
   };
+  // ---------- Hover / Select highlight settings ----------
+  const HOVER_SETTINGS_KEY = 'chem-hover-settings';
+  const SELECT_COLOR_KEY = 'chem-select-color';
+  const DEFAULT_HOVER_COLOR_LIGHT = '#e8710a';
+  const DEFAULT_HOVER_COLOR_DARK  = '#f2a950';
+  const DEFAULT_SELECT_COLOR_LIGHT = '#0b57d0';
+  const DEFAULT_SELECT_COLOR_DARK  = '#8ab4f8';
+  let hoverEnabled = false;
+  let hoverColorLight = DEFAULT_HOVER_COLOR_LIGHT;
+  let hoverColorDark  = DEFAULT_HOVER_COLOR_DARK;
+  let selectColorLight = DEFAULT_SELECT_COLOR_LIGHT;
+  let selectColorDark  = DEFAULT_SELECT_COLOR_DARK;
+  try {
+    const saved = localStorage.getItem(HOVER_SETTINGS_KEY);
+    if (saved) {
+      const o = JSON.parse(saved);
+      if (typeof o.enabled === 'boolean') hoverEnabled = o.enabled;
+      if (typeof o.colorLight === 'string') hoverColorLight = o.colorLight;
+      if (typeof o.colorDark === 'string') hoverColorDark = o.colorDark;
+    }
+  } catch (e) {}
+  try {
+    const saved = localStorage.getItem(SELECT_COLOR_KEY);
+    if (saved) {
+      const o = JSON.parse(saved);
+      if (typeof o.light === 'string') selectColorLight = o.light;
+      if (typeof o.dark === 'string') selectColorDark = o.dark;
+    }
+  } catch (e) {}
+  function persistHoverSettings() {
+    try { localStorage.setItem(HOVER_SETTINGS_KEY, JSON.stringify({ enabled: hoverEnabled, colorLight: hoverColorLight, colorDark: hoverColorDark })); } catch (e) {}
+  }
+  function persistSelectColor() {
+    try { localStorage.setItem(SELECT_COLOR_KEY, JSON.stringify({ light: selectColorLight, dark: selectColorDark })); } catch (e) {}
+  }
+  function hoverColor() {
+    return (window.ChemTheme && window.ChemTheme.isDark()) ? hoverColorDark : hoverColorLight;
+  }
+  function selectColor() {
+    return (window.ChemTheme && window.ChemTheme.isDark()) ? selectColorDark : selectColorLight;
+  }
+  function getHoverSettings() { return { enabled: hoverEnabled, colorLight: hoverColorLight, colorDark: hoverColorDark }; }
+  function setHoverSettings(opts) {
+    if (typeof opts.enabled === 'boolean') hoverEnabled = opts.enabled;
+    if (typeof opts.colorLight === 'string') hoverColorLight = opts.colorLight;
+    if (typeof opts.colorDark === 'string') hoverColorDark = opts.colorDark;
+    persistHoverSettings();
+  }
+  function getSelectColor() { return { light: selectColorLight, dark: selectColorDark }; }
+  function setSelectColor(opts) {
+    if (typeof opts.light === 'string') selectColorLight = opts.light;
+    if (typeof opts.dark === 'string') selectColorDark = opts.dark;
+    persistSelectColor();
+  }
+  function resetHoverSettings() {
+    hoverEnabled = false;
+    hoverColorLight = DEFAULT_HOVER_COLOR_LIGHT;
+    hoverColorDark  = DEFAULT_HOVER_COLOR_DARK;
+    persistHoverSettings();
+  }
+  function resetSelectColor() {
+    selectColorLight = DEFAULT_SELECT_COLOR_LIGHT;
+    selectColorDark  = DEFAULT_SELECT_COLOR_DARK;
+    persistSelectColor();
+  }
   let stage, viewport, gridRect, overlay, wrap, textInput, textEdit = null, lastTextClick = null, tplRotateTimer = null;
   let settingsObserver = null;
 
@@ -267,18 +332,20 @@ window.ChemEditor = (() => {
     if (st.drag) drawDragGhost();
     else if (st.tool === 'erase' && st.hover) drawHover();
     else if (st.tpl && st.hoverP) drawTplGhost();
+    // Hover highlight for select tool (separate from erase hover).
+    if (!st.drag && st.tool === 'select' && !st.tpl && hoverEnabled && st.hover) drawSelectHover();
   }
   function drawSelectionOverlay(selection, preview) {
     if (!selection) return;
-    const blue = window.ChemTheme.palette().blue;
+    const selCol = selectColor();
     const atomIds = selection.type === 'atom' ? [selection.id] : selection.ids || [];
     const radius = preview ? 13 : 15;
     for (const id of atomIds) {
       const atom = M.atom(id);
       if (atom) ov('circle', {
         cx: atom.x, cy: atom.y, r: radius, class: 'sel-ring',
-        fill: blue, 'fill-opacity': preview ? 0.06 : 0.12,
-        stroke: blue, 'stroke-width': preview ? 1.5 : 1.5,
+        fill: selCol, 'fill-opacity': preview ? 0.06 : 0.12,
+        stroke: selCol, 'stroke-width': preview ? 1.5 : 1.5,
         'stroke-dasharray': preview ? 'none' : '5 3',
         'pointer-events': 'none'
       });
@@ -286,7 +353,7 @@ window.ChemEditor = (() => {
     const bondIds = selection.type === 'bond' ? [selection.id] : selection.bondIds || [];
     for (const id of bondIds) {
       const bond = M.bond(id), a = bond && M.atom(bond.a), b = bond && M.atom(bond.b);
-      if (a && b) ov('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, fill: 'none', stroke: blue, 'stroke-opacity': 0.4, 'stroke-width': 9, 'pointer-events': 'none' });
+      if (a && b) ov('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, fill: 'none', stroke: selCol, 'stroke-opacity': 0.4, 'stroke-width': 9, 'pointer-events': 'none' });
     }
     const textIds = selection.type === 'text' ? [selection.id] : selection.textIds || [];
     for (const id of textIds) {
@@ -297,7 +364,26 @@ window.ChemEditor = (() => {
         ? Math.max(annotation.width || 96, Math.max((annotation.above || '').length, (annotation.below || '').length) * size * 0.6)
         : Math.max(size, annotation.text.length * size * 0.6);
       const height = annotation.type === 'arrow' ? size * 2 + 24 : size;
-      ov('rect', { x: annotation.x - width / 2 - 4, y: annotation.y - height / 2 - 3, width: width + 8, height: height + 6, fill: blue, 'fill-opacity': 0.08, stroke: blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' });
+      ov('rect', { x: annotation.x - width / 2 - 4, y: annotation.y - height / 2 - 3, width: width + 8, height: height + 6, fill: selCol, 'fill-opacity': 0.08, stroke: selCol, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' });
+    }
+  }
+  // Vẽ hiệu ứng hover (khác biệt so với selection): atom = vòng tròn liền nét,
+  // bond = đường nền mờ, dùng màu hover (mặc định cam).
+  function drawSelectHover() {
+    const h = st.hover;
+    if (!h) return;
+    // Không vẽ hover nếu đối tượng đã đang được chọn (tránh chồng hiệu ứng).
+    if (selectionIncludesItem(st.sel, h.type, h.id)) return;
+    const col = hoverColor();
+    if (h.type === 'atom') {
+      const a = M.atom(h.id);
+      if (a) {
+        ov('circle', { cx: a.x, cy: a.y, r: 15, fill: col, 'fill-opacity': 0.10, stroke: col, 'stroke-width': 2, 'stroke-opacity': 0.7, 'pointer-events': 'none' });
+      }
+    } else if (h.type === 'bond') {
+      const b = M.bond(h.id); if (!b) return;
+      const A = M.atom(b.a), B = M.atom(b.b); if (!A || !B) return;
+      ov('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, stroke: col, 'stroke-width': 8, 'stroke-linecap': 'round', 'stroke-opacity': 0.35, 'pointer-events': 'none' });
     }
   }
   function drawHover() {
@@ -850,6 +936,12 @@ window.ChemEditor = (() => {
     document.getElementById('stPos').textContent = `x: ${Math.round(p.x)}, y: ${Math.round(p.y)}`;
     if (!st.drag) {
       if (st.tool === 'erase' || st.tpl) { st.hover = hitTest(p); st.hoverP = p; redraw(); }
+      else if (st.tool === 'select' && hoverEnabled) {
+        const prev = st.hover;
+        st.hover = hitTest(p);
+        // Chỉ vẽ lại overlay khi hover thay đổi (tránh render liên tục).
+        if (JSON.stringify(prev) !== JSON.stringify(st.hover)) drawOverlay();
+      }
       return;
     }
     const d = st.drag;
@@ -1531,6 +1623,9 @@ window.ChemEditor = (() => {
   return {
     st, init, redraw, applyView, setTool, setSelectionMode, setBond, setElement, setTemplate,
     selectAll, deleteSel, rotateSelection, toggleGrid, toggleGridType, toggleGridOrientation, toggleSnap, updateGrid, zoomBtn, fitView, setHint, placeTemplate, applySugarAnomer,
-    setSettingsObserver
+    setSettingsObserver,
+    getHoverSettings, setHoverSettings, resetHoverSettings,
+    getSelectColor, setSelectColor, resetSelectColor,
+    hoverColor, selectColor
   };
 })();

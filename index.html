@@ -278,6 +278,27 @@
               <label class="chem-option chem-range-option">Độ mạnh gradient <input id="optShinyIntensity" type="range" min="10" max="100" step="5" value="100"><b id="optShinyIntensityV">100%</b></label>
             </section>
             <section class="chem-property-group">
+              <h3>Hiệu ứng hover (rê chuột)</h3>
+              <label class="chem-option chem-select-option">Bật hiệu ứng hover
+                <select id="settingsHoverEnabled"><option value="disabled" selected>Tắt</option><option value="enabled">Bật</option></select>
+              </label>
+              <p class="muted">Khi rê chuột lên nguyên tử hoặc liên kết, đối tượng sẽ được tô sáng nhẹ (khác biệt với hiệu ứng chọn).</p>
+              <div class="settings-color-grid">
+                <label>Sáng <input id="optHoverColorLight" type="color" value="#e8710a"></label>
+                <label>Tối <input id="optHoverColorDark" type="color" value="#f2a950"></label>
+              </div>
+              <button class="btn settings-reset-colors" data-action="reset-hover-colors" type="button">Khôi phục màu hover mặc định</button>
+            </section>
+            <section class="chem-property-group">
+              <h3>Màu hiệu ứng chọn (select)</h3>
+              <p class="muted">Đổi màu vòng đứt nét / nền mờ khi chọn nguyên tử, liên kết hoặc đối tượng.</p>
+              <div class="settings-color-grid">
+                <label>Sáng <input id="optSelectColorLight" type="color" value="#0b57d0"></label>
+                <label>Tối <input id="optSelectColorDark" type="color" value="#8ab4f8"></label>
+              </div>
+              <button class="btn settings-reset-colors" data-action="reset-select-colors" type="button">Khôi phục màu chọn mặc định</button>
+            </section>
+            <section class="chem-property-group">
               <h3>Lề xuất ảnh</h3>
               <label class="chem-option chem-select-option">Xem trước khung xuất
                 <select id="settingsExportFrame"><option value="disabled" selected>Tắt</option><option value="enabled">Bật</option></select>

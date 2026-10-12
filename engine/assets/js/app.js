@@ -178,6 +178,19 @@ window.ChemApp = (() => {
       const input = document.querySelector(`[data-label-color="${label}"]`);
       if (input) input.value = Th.elColor(label);
     });
+    // Khôi phục hover / select color settings.
+    const hoverSettings = Ed.getHoverSettings();
+    const hoverEnabledSelect = document.getElementById('settingsHoverEnabled');
+    if (hoverEnabledSelect) hoverEnabledSelect.value = hoverSettings.enabled ? 'enabled' : 'disabled';
+    const optHoverLight = document.getElementById('optHoverColorLight');
+    if (optHoverLight) optHoverLight.value = hoverSettings.colorLight;
+    const optHoverDark = document.getElementById('optHoverColorDark');
+    if (optHoverDark) optHoverDark.value = hoverSettings.colorDark;
+    const selectColors = Ed.getSelectColor();
+    const optSelectLight = document.getElementById('optSelectColorLight');
+    if (optSelectLight) optSelectLight.value = selectColors.light;
+    const optSelectDark = document.getElementById('optSelectColorDark');
+    if (optSelectDark) optSelectDark.value = selectColors.dark;
   }
   // Đồng bộ panel cài đặt lưới với trạng thái thật của editor — gọi khi người
   // dùng đổi lưới/bắt điểm bằng nút toolbar hoặc phím tắt (G/T/Y) thay vì
@@ -234,6 +247,21 @@ window.ChemApp = (() => {
     }
     syncViewControls();
     Ed.updateGrid(); Ed.redraw(); saveSettings();
+    // Reset hover / select colors.
+    Ed.resetHoverSettings();
+    Ed.resetSelectColor();
+    const hoverSettings = Ed.getHoverSettings();
+    const hSelect = document.getElementById('settingsHoverEnabled');
+    if (hSelect) hSelect.value = hoverSettings.enabled ? 'enabled' : 'disabled';
+    const optHL = document.getElementById('optHoverColorLight');
+    if (optHL) optHL.value = hoverSettings.colorLight;
+    const optHD = document.getElementById('optHoverColorDark');
+    if (optHD) optHD.value = hoverSettings.colorDark;
+    const selColors = Ed.getSelectColor();
+    const optSL = document.getElementById('optSelectColorLight');
+    if (optSL) optSL.value = selColors.light;
+    const optSD = document.getElementById('optSelectColorDark');
+    if (optSD) optSD.value = selColors.dark;
     toast(text('Đã khôi phục cài đặt mặc định.', 'Settings restored to defaults.'));
   }
 
@@ -408,6 +436,28 @@ window.ChemApp = (() => {
         if (input) input.value = Th.elColor(label);
       });
       Ed.redraw();
+    },
+    'reset-hover-colors': () => {
+      Ed.resetHoverSettings();
+      const h = Ed.getHoverSettings();
+      const hSelect = document.getElementById('settingsHoverEnabled');
+      if (hSelect) hSelect.value = h.enabled ? 'enabled' : 'disabled';
+      const optHL = document.getElementById('optHoverColorLight');
+      if (optHL) optHL.value = h.colorLight;
+      const optHD = document.getElementById('optHoverColorDark');
+      if (optHD) optHD.value = h.colorDark;
+      Ed.redraw();
+      toast(text('Đã khôi phục màu hover mặc định.', 'Hover colors restored to defaults.'));
+    },
+    'reset-select-colors': () => {
+      Ed.resetSelectColor();
+      const c = Ed.getSelectColor();
+      const optSL = document.getElementById('optSelectColorLight');
+      if (optSL) optSL.value = c.light;
+      const optSD = document.getElementById('optSelectColorDark');
+      if (optSD) optSD.value = c.dark;
+      Ed.redraw();
+      toast(text('Đã khôi phục màu chọn mặc định.', 'Selection colors restored to defaults.'));
     },
     'reset-settings': resetSettings,
     'sample-ethanol': () => { place('Etanol'); toast(text('Đã đặt mẫu Etanol', 'Ethanol sample placed')); },
@@ -867,6 +917,35 @@ window.ChemApp = (() => {
     document.getElementById('settingsView').addEventListener('change', e => {
       applyView(e.target.value);
       syncViewControls(); Ed.redraw(); saveSettings();
+    });
+    // Hover / select highlight settings.
+    document.getElementById('settingsHoverEnabled').addEventListener('change', e => {
+      Ed.setHoverSettings({ enabled: e.target.value === 'enabled' });
+      Ed.redraw();
+    });
+    document.getElementById('optHoverColorLight').addEventListener('input', e => {
+      if (/^#[0-9a-f]{6}$/i.test(e.target.value)) {
+        Ed.setHoverSettings({ colorLight: e.target.value });
+        Ed.redraw();
+      }
+    });
+    document.getElementById('optHoverColorDark').addEventListener('input', e => {
+      if (/^#[0-9a-f]{6}$/i.test(e.target.value)) {
+        Ed.setHoverSettings({ colorDark: e.target.value });
+        Ed.redraw();
+      }
+    });
+    document.getElementById('optSelectColorLight').addEventListener('input', e => {
+      if (/^#[0-9a-f]{6}$/i.test(e.target.value)) {
+        Ed.setSelectColor({ light: e.target.value });
+        Ed.redraw();
+      }
+    });
+    document.getElementById('optSelectColorDark').addEventListener('input', e => {
+      if (/^#[0-9a-f]{6}$/i.test(e.target.value)) {
+        Ed.setSelectColor({ dark: e.target.value });
+        Ed.redraw();
+      }
     });
     document.getElementById('settingsGrid').addEventListener('change', e => {
       Ed.st.grid = e.target.value === 'enabled'; Ed.updateGrid(); saveSettings();

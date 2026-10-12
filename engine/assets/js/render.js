@@ -372,18 +372,19 @@ window.ChemRender = (() => {
     const invalidValence = o.valenceCheck ? new Set(M.valenceViolations()) : new Set();
     // 3) Vùng chọn phải có màu nền rõ ràng vì trang tích hợp không nạp stylesheet SVG của engine.
     if (sel) {
+      const selCol = (window.ChemEditor && window.ChemEditor.selectColor) ? window.ChemEditor.selectColor() : pal().blue;
       if (sel.type === 'atom') {
         const a = M.atom(sel.id);
-        if (a) el('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.12, stroke: pal().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
+        if (a) el('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: selCol, 'fill-opacity': 0.12, stroke: selCol, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
       }
       if (sel.type === 'bond') {
         const b = M.bond(sel.id);
         if (b) {
           const A = M.atom(b.a), B = M.atom(b.b);
-          if (A && B) el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sel-ring', fill: 'none', stroke: pal().blue, 'stroke-opacity': 0.35, 'stroke-width': 9, 'pointer-events': 'none' }, world);
+          if (A && B) el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sel-ring', fill: 'none', stroke: selCol, 'stroke-opacity': 0.35, 'stroke-width': 9, 'pointer-events': 'none' }, world);
         }
       }
-      if (sel.type === 'box') el('rect', { x: sel.x, y: sel.y, width: sel.w, height: sel.h, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.1, stroke: pal().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
+      if (sel.type === 'box') el('rect', { x: sel.x, y: sel.y, width: sel.w, height: sel.h, class: 'sel-ring', fill: selCol, 'fill-opacity': 0.1, stroke: selCol, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
       if (sel.type === 'text') {
         const t = M.textItem(sel.id);
         if (t) {
@@ -391,19 +392,19 @@ window.ChemRender = (() => {
             ? Math.max(t.width || 96, Math.max((t.above || '').length, (t.below || '').length) * (t.fontSize || 20) * 0.6)
             : Math.max(t.fontSize || 20, t.text.length * (t.fontSize || 20) * 0.6);
           const height = t.type === 'arrow' ? (t.fontSize || 20) * 2 + 24 : (t.fontSize || 20);
-          el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.08, stroke: pal().blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
+          el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: selCol, 'fill-opacity': 0.08, stroke: selCol, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
         }
       }
       if (sel.type === 'multi') {
         for (const id of sel.ids || []) {
           const a = M.atom(id);
-          if (a) el('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.12, stroke: pal().blue, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
+          if (a) el('circle', { cx: a.x, cy: a.y, r: 15, class: 'sel-ring', fill: selCol, 'fill-opacity': 0.12, stroke: selCol, 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }, world);
         }
         for (const id of sel.bondIds || []) {
           const b = M.bond(id);
           if (!b) continue;
           const A = M.atom(b.a), B = M.atom(b.b);
-          if (A && B) el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sel-ring', fill: 'none', stroke: pal().blue, 'stroke-opacity': 0.35, 'stroke-width': 9, 'pointer-events': 'none' }, world);
+          if (A && B) el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: 'sel-ring', fill: 'none', stroke: selCol, 'stroke-opacity': 0.35, 'stroke-width': 9, 'pointer-events': 'none' }, world);
         }
         for (const id of sel.textIds || []) {
           const t = M.textItem(id);
@@ -412,7 +413,7 @@ window.ChemRender = (() => {
             ? Math.max(t.width || 96, Math.max((t.above || '').length, (t.below || '').length) * (t.fontSize || 20) * 0.6)
             : Math.max(t.fontSize || 20, t.text.length * (t.fontSize || 20) * 0.6);
           const height = t.type === 'arrow' ? (t.fontSize || 20) * 2 + 24 : (t.fontSize || 20);
-          el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: pal().blue, 'fill-opacity': 0.08, stroke: pal().blue, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
+          el('rect', { x: t.x - width / 2 - 4, y: t.y - height / 2 - 3, width: width + 8, height: height + 6, class: 'sel-ring', fill: selCol, 'fill-opacity': 0.08, stroke: selCol, 'stroke-width': 1, 'stroke-dasharray': '4 3', 'pointer-events': 'none' }, world);
         }
       }
     }

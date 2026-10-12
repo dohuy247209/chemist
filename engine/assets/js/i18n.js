@@ -60,6 +60,17 @@ window.ChemI18n = (() => {
     'Độ mạnh gradient': 'Gradient strength', 'Màu mặc định của nhãn': 'Default label colors',
     'Áp dụng cho nhãn mới nếu chưa đặt màu riêng trong Thuộc tính.': 'Used for new labels unless overridden in Properties.',
     'Khôi phục màu nhãn mặc định': 'Reset default label colors', 'Khôi phục cài đặt ban đầu': 'Reset settings to defaults',
+    'Hiệu ứng hover (rê chuột)': 'Hover highlight', 'Bật hiệu ứng hover': 'Enable hover highlight',
+    'Khi rê chuột lên nguyên tử hoặc liên kết, đối tượng sẽ được tô sáng nhẹ (khác biệt với hiệu ứng chọn).':
+      'Hovering over an atom or bond gently highlights it (distinct from selection).',
+    'Sáng': 'Light', 'Tối': 'Dark',
+    'Khôi phục màu hover mặc định': 'Reset default hover colors',
+    'Màu hiệu ứng chọn (select)': 'Selection highlight colors',
+    'Đổi màu vòng đứt nét / nền mờ khi chọn nguyên tử, liên kết hoặc đối tượng.':
+      'Change dashed ring / tinted line color when selecting atoms, bonds, or objects.',
+    'Khôi phục màu chọn mặc định': 'Reset default selection colors',
+    'Đã khôi phục màu hover mặc định.': 'Hover colors restored to defaults.',
+    'Đã khôi phục màu chọn mặc định.': 'Selection colors restored to defaults.',
     'Hiện lưới': 'Show grid', 'Bắt điểm vào lưới': 'Snap to grid', 'Loại lưới': 'Grid type', 'Trục lưới tam giác': 'Triangle grid axis',
     'Kiểm tra cấu trúc': 'Structure checks', 'Kiểm tra hóa trị tự động': 'Check valence automatically',
     'Nguyên tử vượt hóa trị cho phép được đánh dấu bằng vòng nét đứt màu đỏ.':
