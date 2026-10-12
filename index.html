@@ -80,6 +80,7 @@
       </div>
       <div class="tgroup"><span class="tlabel">Nguyên tử</span>
         <button class="atom active" data-el="C" aria-pressed="true" title="Cacbon (C)">C</button>
+        <button class="atom" data-el="H" aria-pressed="false" title="Hydro (H)">H</button>
         <button class="atom" data-el="N" aria-pressed="false" title="Nitơ (N)">N</button>
         <button class="atom" data-el="O" aria-pressed="false" title="Oxi (O)">O</button>
         <button class="atom" data-el="S" aria-pressed="false" title="Lưu huỳnh">S</button>
@@ -275,6 +276,19 @@
                 <select id="settingsView"><option value="default" selected>Mặc định</option><option value="shiny">Shiny / phát sáng nhẹ</option><option value="tint">Nửa liên kết theo màu nhóm</option></select>
               </label>
               <label class="chem-option chem-range-option">Độ mạnh gradient <input id="optShinyIntensity" type="range" min="10" max="100" step="5" value="100"><b id="optShinyIntensityV">100%</b></label>
+            </section>
+            <section class="chem-property-group">
+              <h3>Lề xuất ảnh</h3>
+              <label class="chem-option chem-select-option">Xem trước khung xuất
+                <select id="settingsExportFrame"><option value="disabled" selected>Tắt</option><option value="enabled">Bật</option></select>
+              </label>
+              <div class="settings-margin-grid">
+                <label class="chem-option chem-range-option">Trên <input id="optMarginTop" type="range" min="0" max="200" step="2" value="36"><b id="optMarginTopV">36</b></label>
+                <label class="chem-option chem-range-option">Dưới <input id="optMarginBottom" type="range" min="0" max="200" step="2" value="36"><b id="optMarginBottomV">36</b></label>
+                <label class="chem-option chem-range-option">Trái <input id="optMarginLeft" type="range" min="0" max="200" step="2" value="36"><b id="optMarginLeftV">36</b></label>
+                <label class="chem-option chem-range-option">Phải <input id="optMarginRight" type="range" min="0" max="200" step="2" value="36"><b id="optMarginRightV">36</b></label>
+              </div>
+              <p class="muted">Lề = 0 nghĩa là phân tử sát mép khung ảnh. Khung nét đứt trên canvas là vùng sẽ được xuất.</p>
             </section>
             <div class="btnrow"><button class="btn" data-action="reset-settings" type="button">Khôi phục cài đặt ban đầu</button></div>
           </div>

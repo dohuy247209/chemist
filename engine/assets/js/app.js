@@ -116,7 +116,12 @@ window.ChemApp = (() => {
       selectionMode: Ed.st.selectionMode,
       valenceCheck: isEnabled('settingsValenceCheck'),
       view: currentView(),
-      shinyIntensity: +document.getElementById('optShinyIntensity').value
+      shinyIntensity: +document.getElementById('optShinyIntensity').value,
+      exportFrame: isEnabled('settingsExportFrame'),
+      marginTop: +document.getElementById('optMarginTop').value,
+      marginBottom: +document.getElementById('optMarginBottom').value,
+      marginLeft: +document.getElementById('optMarginLeft').value,
+      marginRight: +document.getElementById('optMarginRight').value
     };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(storedSettings)); }
     catch (error) { console.warn('Unable to save editor settings.', error); }
@@ -136,12 +141,18 @@ window.ChemApp = (() => {
     setValue('optFont', 'font', v => Number.isFinite(v) && v >= 12 && v <= 30);
     setValue('optShinyIntensity', 'shinyIntensity', v => Number.isFinite(v) && v >= 10 && v <= 100);
     setValue('optBg', 'background', v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v));
+    const marginOk = v => Number.isFinite(v) && v >= 0 && v <= 200;
+    setValue('optMarginTop', 'marginTop', marginOk);
+    setValue('optMarginBottom', 'marginBottom', marginOk);
+    setValue('optMarginLeft', 'marginLeft', marginOk);
+    setValue('optMarginRight', 'marginRight', marginOk);
     setEnabled('optCircle', 'circle');
     setEnabled('optKekule', 'kekule');
     setEnabled('optTransparent', 'transparent');
     setEnabled('settingsGrid', 'grid');
     setEnabled('settingsSnap', 'snap');
     setEnabled('settingsValenceCheck', 'valenceCheck');
+    setEnabled('settingsExportFrame', 'exportFrame');
     if (s.selectionMode === 'select' || s.selectionMode === 'lasso') Ed.st.selectionMode = s.selectionMode;
     if (s.gridType === 'square' || s.gridType === 'triangle') Ed.st.gridType = s.gridType;
     if (s.gridOrientation === 'horizontal' || s.gridOrientation === 'vertical') Ed.st.gridOrientation = s.gridOrientation;
@@ -153,7 +164,7 @@ window.ChemApp = (() => {
     // Chế độ hiển thị: ưu tiên khóa "view"; nếu chỉ có khóa "shiny" cũ thì quy đổi.
     const view = VIEW_MODES.includes(s.view) ? s.view : (s.shiny === true ? 'shiny' : 'default');
     applyView(view);
-    for (const [inputId, labelId] of [['optBondLen', 'optBondLenV'], ['optStroke', 'optStrokeV'], ['optFont', 'optFontV'], ['optShinyIntensity', 'optShinyIntensityV']]) {
+    for (const [inputId, labelId] of [['optBondLen', 'optBondLenV'], ['optStroke', 'optStrokeV'], ['optFont', 'optFontV'], ['optShinyIntensity', 'optShinyIntensityV'], ['optMarginTop', 'optMarginTopV'], ['optMarginBottom', 'optMarginBottomV'], ['optMarginLeft', 'optMarginLeftV'], ['optMarginRight', 'optMarginRightV']]) {
       const input = document.getElementById(inputId), label = document.getElementById(labelId);
       label.textContent = inputId === 'optShinyIntensity' ? input.value + '%' : input.value;
       const min = +input.min, max = +input.max, value = +input.value;
@@ -198,6 +209,11 @@ window.ChemApp = (() => {
     document.getElementById('settingsGrid').value = 'enabled';
     document.getElementById('settingsSnap').value = 'enabled';
     document.getElementById('settingsValenceCheck').value = 'enabled';
+    document.getElementById('settingsExportFrame').value = 'disabled';
+    document.getElementById('optMarginTop').value = 36;
+    document.getElementById('optMarginBottom').value = 36;
+    document.getElementById('optMarginLeft').value = 36;
+    document.getElementById('optMarginRight').value = 36;
     document.getElementById('settingsGridType').value = 'square';
     document.getElementById('settingsGridOrientation').value = 'horizontal';
     Ed.setSelectionMode('select');
@@ -208,7 +224,7 @@ window.ChemApp = (() => {
       const input = document.querySelector(`[data-label-color="${label}"]`);
       if (input) input.value = Th.elColor(label);
     });
-    for (const [inputId, labelId] of [['optBondLen', 'optBondLenV'], ['optStroke', 'optStrokeV'], ['optFont', 'optFontV'], ['optShinyIntensity', 'optShinyIntensityV']]) {
+    for (const [inputId, labelId] of [['optBondLen', 'optBondLenV'], ['optStroke', 'optStrokeV'], ['optFont', 'optFontV'], ['optShinyIntensity', 'optShinyIntensityV'], ['optMarginTop', 'optMarginTopV'], ['optMarginBottom', 'optMarginBottomV'], ['optMarginLeft', 'optMarginLeftV'], ['optMarginRight', 'optMarginRightV']]) {
       const input = document.getElementById(inputId), label = document.getElementById(labelId);
       label.textContent = inputId === 'optShinyIntensity' ? input.value + '%' : input.value;
       input.style.setProperty('--range-progress', ((+input.value - +input.min) / (+input.max - +input.min) * 100) + '%');
@@ -788,6 +804,10 @@ window.ChemApp = (() => {
     bindRange('optStroke', 'optStrokeV', () => Ed.redraw());
     bindRange('optFont', 'optFontV', () => Ed.redraw());
     bindRange('optShinyIntensity', 'optShinyIntensityV', () => Ed.redraw());
+    // Lề xuất ảnh: đổi là vẽ lại khung xem trước + cập nhật mã SVG.
+    ['optMarginTop', 'optMarginBottom', 'optMarginLeft', 'optMarginRight'].forEach((id, i) =>
+      bindRange(id, id + 'V', () => { Ed.redraw(); X.refreshCodeView(); }));
+    document.getElementById('settingsExportFrame').addEventListener('change', () => { Ed.redraw(); saveSettings(); });
     ['optCircle', 'optKekule', 'optTransparent'].forEach(id =>
       document.getElementById(id).addEventListener('change', () => { Ed.redraw(); X.refreshCodeView(); saveSettings(); }));
     document.getElementById('optBg').addEventListener('input', () => { Ed.redraw(); X.refreshCodeView(); saveSettings(); });

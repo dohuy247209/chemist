@@ -12,7 +12,20 @@ window.ChemExport = (() => {
     };
     return null;
   }
-  function selectionBBox(model, items) {
+  // Lề xuất ảnh (px) theo 4 phía, đọc từ settings; mặc định 36 như trước.
+  function margins() {
+    const read = (id, fallback) => {
+      const input = document.getElementById(id);
+      const value = parseFloat(input && input.value);
+      return Number.isFinite(value) && value >= 0 ? value : fallback;
+    };
+    return {
+      top: read('optMarginTop', 36), bottom: read('optMarginBottom', 36),
+      left: read('optMarginLeft', 36), right: read('optMarginRight', 36)
+    };
+  }
+  // Phạm vi thô (không lề) của các đối tượng được chọn.
+  function selectionExtent(model, items) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const include = (x, y) => {
       x0 = Math.min(x0, x); y0 = Math.min(y0, y);
@@ -43,19 +56,56 @@ window.ChemExport = (() => {
       }
     }
     if (!Number.isFinite(x0)) throw new Error('The selected objects are no longer available.');
-    const padding = 36;
+    return { x0, y0, x1, y1 };
+  }
+  // Từ phạm vi thô + lề → hộp xuất {x,y,w,h}. Lề = 0 ⇒ phân tử sát mép khung.
+  function boxFromExtent(ext, m) {
     return {
-      x: x0 - padding, y: y0 - padding,
-      w: Math.max(10, x1 - x0 + padding * 2),
-      h: Math.max(10, y1 - y0 + padding * 2)
+      x: ext.x0 - m.left, y: ext.y0 - m.top,
+      w: Math.max(10, (ext.x1 - ext.x0) + m.left + m.right),
+      h: Math.max(10, (ext.y1 - ext.y0) + m.top + m.bottom)
     };
+  }
+  // Phạm vi thô của TOÀN khung vẽ (mọi nguyên tử + chú thích), không áp dụng
+  // mức tối thiểu 10px như M.bbox — để cộng lề sau cho khớkkhớp hành vi cũ.
+  function fullExtent(model) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const include = (x, y) => {
+      if (x < x0) x0 = x; if (y < y0) y0 = y;
+      if (x > x1) x1 = x; if (y > y1) y1 = y;
+    };
+    for (const atom of model.S.atoms) include(atom.x, atom.y);
+    for (const t of model.S.texts) {
+      const size = t.fontSize || 20;
+      if (t.type === 'arrow') {
+        const width = Math.max(t.width || 96, Math.max((t.above || '').length, (t.below || '').length) * size * 0.6);
+        include(t.x - width / 2, t.y - (t.above ? size : 12));
+        include(t.x + width / 2, t.y + (t.below ? size : 12));
+      } else {
+        const width = (t.text || '').length * size * 0.6;
+        include(t.x - width / 2, t.y - size / 2);
+        include(t.x + width / 2, t.y + size / 2);
+      }
+    }
+    if (!Number.isFinite(x0)) return null;
+    return { x0, y0, x1, y1 };
+  }
+  // Hộp sẽ được xuất cho một lựa chọn (selection === undefined ⇒ toàn khung).
+  // Dùng cho cả overlay xem trước trên canvas và standaloneSVG.
+  function exportFrame(selection) {
+    const M = window.ChemModel;
+    const m = margins();
+    const items = selection === undefined ? null : selectionItems(selection);
+    if (items) return boxFromExtent(selectionExtent(M, items), m);
+    const ext = fullExtent(M) || { x0: -200, y0: -150, x1: 200, y1: 150 };
+    return boxFromExtent(ext, m);
   }
   function standaloneSVG(selection) {
     const M = window.ChemModel, R = window.ChemRender;
     const world = document.getElementById('world');
     const items = selection === undefined ? null : selectionItems(selection);
     if (selection !== undefined && !items) throw new Error('The selection cannot be exported.');
-    const box = items ? selectionBBox(M, items) : M.bbox(36) || { x: -200, y: -150, w: 400, h: 300 };
+    const box = exportFrame(selection);
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('xmlns', NS);
     svg.setAttribute('viewBox', `${r1(box.x)} ${r1(box.y)} ${r1(box.w)} ${r1(box.h)}`);
@@ -203,5 +253,5 @@ window.ChemExport = (() => {
     const { code } = standaloneSVG();
     document.getElementById('svgCode').textContent = code;
   }
-  return { standaloneSVG, exportSVG, copySVG, exportPNG, copyPNG, saveJSON, refreshCodeView };
+  return { standaloneSVG, exportSVG, copySVG, exportPNG, copyPNG, saveJSON, refreshCodeView, exportFrame };
 })();

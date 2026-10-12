@@ -211,9 +211,37 @@ window.ChemEditor = (() => {
     for (const k in attrs) n.setAttribute(k, attrs[k]);
     (parent || overlay).appendChild(n); return n;
   }
+  // Vẽ khung xem trước vùng sẽ được xuất ảnh (lề theo settings). Khung này phản
+  // ánh ĐÚNG hộp export: nếu đang chọn đối tượng thì là vùng chọn, ngược lại là
+  // toàn khung vẽ. Cập nhật theo thời gian thực khi kéo/xoay/thay đổi lề.
+  function drawExportFrame() {
+    const X = window.ChemExport;
+    if (!X || !X.exportFrame) return;
+    const setting = document.getElementById('settingsExportFrame');
+    if (setting && setting.value !== 'enabled') return;
+    let box;
+    try { box = X.exportFrame(st.sel || undefined); } catch (error) { return; }
+    if (!box) return;
+    const blue = window.ChemTheme.palette().blue;
+    ov('rect', {
+      x: box.x, y: box.y, width: box.w, height: box.h,
+      fill: 'none', stroke: blue, 'stroke-width': 1.5, 'stroke-dasharray': '6 4',
+      'pointer-events': 'none', class: 'export-frame'
+    });
+    // Góc đánh dấu để dững tâm khung.
+    const c = 8;
+    for (const [cx, cy, sx, sy] of [[box.x, box.y, 1, 1], [box.x + box.w, box.y, -1, 1], [box.x, box.y + box.h, 1, -1], [box.x + box.w, box.y + box.h, -1, -1]]) {
+      ov('path', {
+        d: `M${cx} ${cy + sy * c} L${cx} ${cy} L${cx + sx * c} ${cy}`,
+        fill: 'none', stroke: blue, 'stroke-width': 2, 'stroke-linecap': 'round',
+        'pointer-events': 'none', class: 'export-frame'
+      });
+    }
+  }
   // Vẽ vùng chọn (multi) + ghost + hover lên lớp overlay.
   function drawOverlay() {
     clearOverlay();
+    drawExportFrame();
     const draggingLasso = st.drag && st.drag.mode === 'lasso';
     if (draggingLasso) {
       ov('polygon', {

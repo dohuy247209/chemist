@@ -910,6 +910,17 @@ body .dg.main.chem-properties {
   background: transparent;
 }
 
+.settings-margin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  margin: 8px 0 6px;
+}
+
+.settings-margin-grid .chem-range-option {
+  grid-template-columns: 34px minmax(0, 1fr) 30px;
+}
+
 .chem-tabs {
   display: flex;
   flex: 0 0 auto;

@@ -53,6 +53,10 @@ window.ChemI18n = (() => {
     'Chế độ hiển thị': 'Display mode', 'Kiểu liên kết': 'Bond style',
     'Mặc định': 'Default', 'Shiny / phát sáng nhẹ': 'Shiny / subtle glow',
     'Nửa liên kết theo màu nhóm': 'Half-tinted bonds',
+    'Lề xuất ảnh': 'Export margin', 'Xem trước khung xuất': 'Preview export frame',
+    'Trên': 'Top', 'Dưới': 'Bottom', 'Trái': 'Left', 'Phải': 'Right',
+    'Lề = 0 nghĩa là phân tử sát mép khung ảnh. Khung nét đứt trên canvas là vùng sẽ được xuất.':
+      'Margin = 0 means the molecule sits flush to the image edge. The dashed frame on the canvas is the area that will be exported.',
     'Độ mạnh gradient': 'Gradient strength', 'Màu mặc định của nhãn': 'Default label colors',
     'Áp dụng cho nhãn mới nếu chưa đặt màu riêng trong Thuộc tính.': 'Used for new labels unless overridden in Properties.',
     'Khôi phục màu nhãn mặc định': 'Reset default label colors', 'Khôi phục cài đặt ban đầu': 'Reset settings to defaults',
