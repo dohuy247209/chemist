@@ -31,49 +31,65 @@ window.ChemRender = (() => {
     }
     return t;
   }
+  const LATEX_COMMANDS = {
+    rightarrow: '→', to: '→', longrightarrow: '⟶', leftarrow: '←', longleftarrow: '⟵',
+    leftrightarrow: '↔', rightleftharpoons: '⇌', gets: '←', pm: '±', times: '×',
+    cdot: '·', Delta: 'Δ', alpha: 'α', beta: 'β', gamma: 'γ'
+  };
+
+  // Đọc nhóm {…} cân bằng bắt đầu tại source[i] === '{'.
+  function readGroup(source, i) {
+    let depth = 0;
+    for (let k = i; k < source.length; k++) {
+      if (source[k] === '\\') { k++; continue; }
+      if (source[k] === '{') depth++;
+      else if (source[k] === '}' && --depth === 0) return { value: source.slice(i + 1, k), next: k + 1 };
+    }
+    return { value: source.slice(i + 1), next: source.length };      // thiếu '}' → lấy đến hết chuỗi
+  }
+
   function latexTokens(source) {
-    const commands = {
-      rightarrow: '→', to: '→', longrightarrow: '⟶', leftarrow: '←', longleftarrow: '⟵',
-      leftrightarrow: '↔', rightleftharpoons: '⇌', gets: '←', pm: '±', times: '×',
-      cdot: '·', Delta: 'Δ', alpha: 'α', beta: 'β', gamma: 'γ'
-    };
-    const tokens = [];
-    for (let i = 0; i < source.length;) {
-      if (source[i] === '_' || source[i] === '^') {
-        const kind = source[i++] === '_' ? 'sub' : 'sup';
-        let value = '';
-        if (source[i] === '{') {
-          let depth = 1;
-          i++;
-          while (i < source.length && depth) {
-            if (source[i] === '{') depth++;
-            else if (source[i] === '}') { depth--; if (!depth) { i++; break; } }
-            if (depth) value += source[i++];
-          }
-        } else if (i < source.length) {
-          if (source[i] === '\\' && i + 1 < source.length) {
-            i++;
-            const match = source.slice(i).match(/^[A-Za-z]+/);
-            if (match) { value = commands[match[0]] || match[0]; i += match[0].length; }
-            else value = source[i++];
-          } else value = source[i++];
-        }
-        if (value) tokens.push({ text: value, script: kind });
-      } else if (source[i] === '\\') {
+    const out = [];
+    const push = (text, script) => { if (text) out.push(script ? { text, script } : { text }); };
+    const pushAll = (tokens, script) => tokens.forEach(t => push(t.text, t.script || script));
+    let i = 0;
+    while (i < source.length) {
+      const ch = source[i];
+      if (ch === '_' || ch === '^') {
+        const kind = ch === '_' ? 'sub' : 'sup';
         i++;
-        const match = source.slice(i).match(/^[A-Za-z]+/);
-        if (match) {
-          tokens.push({ text: commands[match[0]] || match[0] });
-          i += match[0].length;
-        } else if (i < source.length) tokens.push({ text: source[i++] });
-      } else if (source[i] === '{' || source[i] === '}') i++;
+        let raw = '';
+        if (source[i] === '{') { const g = readGroup(source, i); raw = g.value; i = g.next; }
+        else if (source[i] === '\\') { const m = source.slice(i).match(/^\\([A-Za-z]+|.)/); raw = m ? m[0] : ''; i += raw.length; }
+        else if (i < source.length) raw = source[i++];
+        pushAll(latexTokens(raw), kind);                              // \alpha, \mathrm{…} trong {…} đều đúng
+      } else if (ch === '\\') {
+        const m = source.slice(i + 1).match(/^[A-Za-z]+/);
+        if (m) {
+          const name = m[0];
+          i += 1 + name.length;
+          if (LATEX_COMMANDS[name]) push(LATEX_COMMANDS[name]);
+          else {
+            while (source[i] === ' ') i++;
+            if (source[i] === '{') { const g = readGroup(source, i); i = g.next; pushAll(latexTokens(g.value)); }
+            // lệnh lạ không có nhóm: bỏ qua, KHÔNG in tên lệnh
+          }
+          while (source[i] === ' ') i++;                              // TeX bỏ khoảng trắng sau tên lệnh
+        } else {
+          const sym = source[i + 1];
+          i += 2;
+          if (sym === undefined) break;
+          if (sym === ',' || sym === ';' || sym === ':' || sym === ' ') push(' ');
+          else if (sym !== '!') push(sym);                            // \% \$ \_ \{ \} \& \# → ký tự thật
+        }
+      } else if (ch === '{' || ch === '}') i++;
       else {
         const start = i++;
         while (i < source.length && !'_^\\{}'.includes(source[i])) i++;
-        tokens.push({ text: source.slice(start, i) });
+        push(source.slice(start, i));
       }
     }
-    return tokens;
+    return out;
   }
   function textTokens(value, latex) {
     if (!latex) return [{ text: value }];

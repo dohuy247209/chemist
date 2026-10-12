@@ -523,7 +523,7 @@ window.ChemApp = (() => {
                 Ed.redraw();
                 updateProps();
               } else {
-                toast(text('Không thể đổi cấu hình đường.', 'Could not change the sugar configuration.'));
+                toast(text('Không đổi được: phân tử đường đã bị sửa hoặc xoá nguyên tử. Hãy đặt lại mẫu.', 'Cannot switch: the sugar molecule was edited or an atom was removed. Please place the template again.'));
               }
             };
           });

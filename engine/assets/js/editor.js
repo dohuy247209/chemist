@@ -518,11 +518,13 @@ window.ChemEditor = (() => {
     const ox = place.ox, oy = place.oy;
 
     M.transact(() => {
+      const created = [];
       const ids = frag.atoms.map(a => {
         const offset = orientTemplatePoint(a.dx, a.dy, templateAngle);
         const x = fusion ? ox + fusion.scale * (fusion.cos * a.dx - fusion.sin * a.dy) : offset.x + ox;
         const y = fusion ? oy + fusion.scale * (fusion.sin * a.dx + fusion.cos * a.dy) : offset.y + oy;
         const ex = M.nearAtom({ x, y }, 10);
+        created.push(!ex);
         return ex ? ex.id : M.addAtom(x, y, a.el).id;
       });
       const bondIds = [];
@@ -532,23 +534,33 @@ window.ChemEditor = (() => {
         bondIds.push(b ? b.id : null);
       }
       const rings = frag.rings || (frag.ring ? [frag.ring] : []);
+      let sugarGid = null;
       for (const rg of rings) {
         const center = orientTemplatePoint(rg.cx, rg.cy, templateAngle);
         const cx = fusion ? ox + fusion.scale * (fusion.cos * rg.cx - fusion.sin * rg.cy) : ox + center.x;
         const cy = fusion ? oy + fusion.scale * (fusion.sin * rg.cx + fusion.cos * rg.cy) : oy + center.y;
         const g = M.addRing(cx, cy, rg.r * (fusion ? fusion.scale : 1), rg.aromatic);
+        if (frag.group === 'sugar') sugarGid = g.id;
         g.atoms = rg.vertices ? rg.vertices.map(i => ids[i]) : undefined;
         if (rg.dbl && rg.dbl.length) g.dblIds = rg.dbl.map(i => bondIds[i]).filter(Boolean);
       }
       if (near && !isRing) M.addBond(near.id, ids[frag.anchor != null ? frag.anchor : 0], frag.order || 1, 'solid');
-      // Đánh dấu các nguyên tử thuộc phân tử đường để panel thuộc tính có thể
-      // hiện bộ chọn cấu hình α/β. Lưu cả tâm vòng (ox,oy) để khi đổi α/β
-      // dựng lại đúng nguyên vị trí, không bị dịch. Chỉ gắn cho nguyên tử do mẫu tạo.
-      if (frag.group === 'sugar' && frag.sugar) {
-        for (let i = 0; i < ids.length; i++) {
-          const atom = M.atom(ids[i]);
-          if (atom) atom.sugar = { name: frag.sugar.name, layout: frag.layout || 'flat', anomer: null, cx: ox, cy: oy };
-        }
+      // Đánh dấu các nguyên tử thuộc phân tử đường để panel thuộc tính hiện bộ chọn
+      // cấu hình α/β. Mã nhóm = id của VÒNG (gid): vòng đã đăng ký id nên không trùng
+      // sau khi mở lại file, và cho phép đổi α/β tại chỗ mà không đụng phân tử khác.
+      // Chỉ gắn cho nguyên tử do mẫu tạo (created), tránh ghi đè metadata của phân tử
+      // khác khi vị trí trùng một nguyên tử có sẵn (nearAtom).
+      if (frag.group === 'sugar' && frag.sugar && sugarGid != null) {
+        // Mẫu gốc đang là dạng α hay β? (so với danh sách biến thể) → panel tô sáng đúng nút.
+        const same = v => JSON.stringify(v.substituents) === JSON.stringify(frag.sugar.substituents);
+        const match = window.ChemTemplates.sugarVariants(frag.sugar.name).find(same);
+        ids.forEach((id, i) => {
+          const atom = M.atom(id);
+          if (atom && created[i]) atom.sugar = {
+            gid: sugarGid, idx: i, name: frag.sugar.name,
+            layout: frag.layout || 'flat', anomer: match ? match.id : null
+          };
+        });
       }
     }, 'place');
     st.sel = null;
@@ -563,47 +575,51 @@ window.ChemEditor = (() => {
   function applySugarAnomer(seedAtomId, variantId) {
     const T = window.ChemTemplates;
     const seed = M.atom(seedAtomId);
-    if (!seed || !seed.sugar) return null;
-    const name = seed.sugar.name, layout = seed.sugar.layout || 'flat';
-    const variants = T.sugarVariants(name);
-    const variant = variants.find(v => v.id === variantId);
+    if (!seed || !seed.sugar || seed.sugar.gid == null) return null;   // bản vẽ cũ chưa có gid
+    const { gid, name } = seed.sugar;
+    const layout = seed.sugar.layout || 'flat';
+    const variant = T.sugarVariants(name).find(v => v.id === variantId);
     if (!variant || !variant.def) return null;
 
-    // Thu thập toàn bộ nguyên tử của phân tử đường này (cùng thành phần liên thông).
-    const ids = Array.from(M.component(seedAtomId));
-    const atoms = ids.map(id => M.atom(id)).filter(Boolean);
-    if (!atoms.length) return null;
+    // Chỉ lấy nguyên tử của ĐÚNG phân tử đường này (theo gid), KHÔNG lấy cả thành
+    // phần liên thông → glycosid/nhóm thế vừa vẽ/đường lân cận không bị đụng.
+    const byIdx = new Map();
+    for (const a of M.S.atoms) if (a.sugar && a.sugar.gid === gid) byIdx.set(a.sugar.idx, a);
 
-    // Tâm vòng: ưu tiên dùng tâm đã lưu lúc đặt (bất biến khi đổi α/β → không dịch).
-    // Nếu không có (mẫu cũ), tính trung bình các nguyên tử thuộc vòng (bậc ≥ 2),
-    // KHÔNG lấy cả nhóm chức đầu mạch (OH/CH₂OH) vì chúng lệch theo hướng α/β.
-    let cx, cy;
-    if (typeof seed.sugar.cx === 'number' && typeof seed.sugar.cy === 'number') {
-      cx = seed.sugar.cx; cy = seed.sugar.cy;
-    } else {
-      const ringAtoms = atoms.filter(a => M.degree(a.id) >= 2);
-      const use = ringAtoms.length ? ringAtoms : atoms;
-      cx = use.reduce((s, a) => s + a.x, 0) / use.length;
-      cy = use.reduce((s, a) => s + a.y, 0) / use.length;
-    }
+    const frag = T.buildSugar(Object.assign({}, variant.def, { substituents: variant.substituents }), layout);
+    if (frag.atoms.some((_, i) => !byIdx.has(i))) return null;       // thiếu nguyên tử (đã bị xoá)
 
-    let newSeedId = null;
+    // Phép biến đổi mẫu → khung vẽ, suy ra từ 2 đỉnh vòng hiện tại (đã gồm kéo,
+    // xoay, scale) → giữ nguyên vị trí VÀ hướng xoay của phân tử.
+    const n = frag.ring.vertices.length;
+    const t0 = frag.atoms[0], t1 = frag.atoms[1], c0 = byIdx.get(0), c1 = byIdx.get(1);
+    const scale = Math.hypot(c1.x - c0.x, c1.y - c0.y) / (Math.hypot(t1.dx - t0.dx, t1.dy - t0.dy) || 1);
+    const rot = Math.atan2(c1.y - c0.y, c1.x - c0.x) - Math.atan2(t1.dy - t0.dy, t1.dx - t0.dx);
+    const cos = Math.cos(rot) * scale, sin = Math.sin(rot) * scale;
+    let cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) { cx += byIdx.get(i).x; cy += byIdx.get(i).y; }
+    cx /= n; cy /= n;                                                // tâm mẫu = (0,0)
+
     M.transact(() => {
-      // Xóa toàn bộ phân tử đường cũ.
-      for (const a of atoms) M.removeAtom(a.id);
-      // Dựng lại phân tử theo dạng α/β đã chọn tại đúng vị trí cũ.
-      const frag = T.buildSugar(Object.assign({}, variant.def, { substituents: variant.substituents }), layout);
-      const atomIds = frag.atoms.map(a => M.addAtom(cx + a.dx, cy + a.dy, a.el).id);
-      frag.bonds.forEach(bd => M.addBond(atomIds[bd[0]], atomIds[bd[1]], bd[2] || 1, bd[3] || 'solid', bd[4] || null));
-      M.addRing(cx, cy, frag.ring.r, frag.ring.aromatic);
-      // Gắn lại metadata đường cho các nguyên tử mới (giữ nguyên tâm vòng đã lưu).
-      for (const id of atomIds) {
-        const atom = M.atom(id);
-        if (atom) atom.sugar = { name, layout, anomer: variantId, cx, cy };
-      }
-      newSeedId = atomIds.length ? atomIds[0] : null;
+      // Cập nhật TẠI CHỖ: đỉnh vòng giữ nguyên (giữ id/màu/nhãn), chỉ đổi nhóm thế.
+      frag.atoms.forEach((t, i) => {
+        if (i < n) return;                                           // đỉnh vòng giữ nguyên
+        const a = byIdx.get(i);
+        a.x = Math.round((cx + cos * t.dx - sin * t.dy) * 10) / 10;
+        a.y = Math.round((cy + sin * t.dx + cos * t.dy) * 10) / 10;
+      });
+      // Chỉ đổi kiểu nét (wedge ↔ hash) của các liên kết nhóm thế; liên kết khác
+      // (kể cả glycosid) giữ nguyên.
+      frag.bonds.forEach(bd => {
+        if (bd[0] < n && bd[1] < n) return;                          // chỉ liên kết nhóm thế
+        const A = byIdx.get(bd[0]), B = byIdx.get(bd[1]);
+        if (!A || !B) return;
+        const b = M.S.bonds.find(x => (x.a === A.id && x.b === B.id) || (x.a === B.id && x.b === A.id));
+        if (b) b.style = bd[3] || 'solid';
+      });
+      byIdx.forEach(a => { a.sugar.anomer = variantId; });
     }, 'sugar-anomer');
-    return newSeedId;
+    return seedAtomId;                                               // id không đổi → panel giữ nguyên
   }
   // ---------- Xử lý chuột ----------
   function onDown(e) {

@@ -292,6 +292,9 @@ window.ChemModel = (() => {
     S.bonds = bonds;
     S.rings = rings;
     S.texts = normalizedTexts;
+    // Bản vẽ cũ: metadata đường dạng {name,cx,cy} không có gid/idx sẽ làm nút α/β
+    // hoạt động sai (hoặc không hoạt động). Xoá để panel không hiện nút hỏng.
+    for (const a of S.atoms) if (a.sugar && a.sugar.gid == null) delete a.sugar;
     let maxId = 0;
     for (const id of ids) maxId = Math.max(maxId, id);
     S.seq = maxId + 1;
