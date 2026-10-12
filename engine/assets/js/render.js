@@ -10,6 +10,9 @@ window.ChemRender = (() => {
   }
   // Bảng màu theo giao diện sáng/tối (đồng bộ với ChemTheme.palette và biến CSS --draw/--halo).
   const pal = () => (window.ChemTheme ? window.ChemTheme.palette() : { ink: '#202124', halo: '#ffffff', canvas: '#ffffff' });
+  const bondColor = () => (window.ChemTheme ? window.ChemTheme.bondColor() : pal().ink);
+  const atomDefaultColor = () => (window.ChemTheme ? window.ChemTheme.atomColor() : pal().ink);
+  const textDefaultColor = () => (window.ChemTheme ? window.ChemTheme.textColor() : pal().ink);
   // Tách chữ, số và dấu để giữ nguyên nhãn tự do; số được vẽ dạng chỉ số dưới.
   function labelParts(elName) {
     const parts = []; const re = /([A-Za-zÀ-ỹ]+|\d+|[^A-Za-zÀ-ỹ\d]+)/g; let m;
@@ -204,7 +207,7 @@ window.ChemRender = (() => {
     if (b.bold && b.style !== 'wedge' && b.style !== 'hash' && b.order !== 2 && b.order !== 3) {
       const w = Math.max(3.2, o.stroke * 1.35);
       const grp = el('g', { 'data-bid': b.id }, g);
-      el('line', { x1: r(A.x), y1: r(A.y), x2: r(B.x), y2: r(B.y), 'class': 'bond', stroke: b.color || paint || pal().ink, 'stroke-width': w, 'stroke-linecap': 'round' }, grp);
+      el('line', { x1: r(A.x), y1: r(A.y), x2: r(B.x), y2: r(B.y), 'class': 'bond', stroke: b.color || paint || bondColor(), 'stroke-width': w, 'stroke-linecap': 'round' }, grp);
       el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, 'class': 'hit', 'stroke-width': 14, 'data-bid': b.id }, grp);
       return grp;
     }
@@ -214,7 +217,7 @@ window.ChemRender = (() => {
     const G = bondGeom(A, B, tA, tB);
     const availableLength = Math.hypot(G.x2 - G.x1, G.y2 - G.y1);
     const grp = el('g', { 'data-bid': b.id }, g);
-    const main = { 'class': 'bond', stroke: b.color || paint || pal().ink, 'stroke-width': w, 'stroke-linecap': 'round' };
+    const main = { 'class': 'bond', stroke: b.color || paint || bondColor(), 'stroke-width': w, 'stroke-linecap': 'round' };
     const off = Math.max(3.2, w + 2.2);
     const parallelLine = (shift, side, length, width) => {
       const mx = (G.x1 + G.x2) / 2, my = (G.y1 + G.y2) / 2;
@@ -231,7 +234,7 @@ window.ChemRender = (() => {
       const w0 = 1.6, w1 = 6.5;
       const p = `${G.x1 + G.px * w0},${G.y1 + G.py * w0} ${G.x2 + G.px * w1},${G.y2 + G.py * w1} ${G.x2 - G.px * w1},${G.y2 - G.py * w1} ${G.x1 - G.px * w0},${G.y1 - G.py * w0}`;
       // Không gắn class="bond": CSS #world .bond{fill:none} sẽ làm mất hình wedge.
-      el('polygon', { points: p, fill: b.color || paint || pal().ink, stroke: 'none' }, grp).setAttribute('style', 'stroke:none');
+      el('polygon', { points: p, fill: b.color || paint || bondColor(), stroke: 'none' }, grp).setAttribute('style', 'stroke:none');
     } else if (b.style === 'hash') {
       const N = 7;
       for (let i = 1; i <= N; i++) {
@@ -295,10 +298,10 @@ window.ChemRender = (() => {
       const p = parseFloat(input && input.value) || 100;
       return Math.min(1, Math.max(0.1, p / 100));
     })();
-    const bondColor = pal().ink;
+    const defBondColor = bondColor();
     function gradientColor(color) {
       const from = color.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
-      const to = bondColor.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
+      const to = defBondColor.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
       return '#' + from.map((channel, i) => Math.round(to[i] + (channel - to[i]) * shinyStrength)
         .toString(16).padStart(2, '0')).join('');
     }
@@ -312,22 +315,23 @@ window.ChemRender = (() => {
       return `url(#${id})`;
     }
     function bondPaint(a, b) {
-      const colorA = atomColor(a), colorB = atomColor(b);
+      const colorA = (window.ChemTheme && window.ChemTheme.bondTintForAtom) ? window.ChemTheme.bondTintForAtom(a) : defBondColor;
+      const colorB = (window.ChemTheme && window.ChemTheme.bondTintForAtom) ? window.ChemTheme.bondTintForAtom(b) : defBondColor;
+      if (colorA === defBondColor && colorB === defBondColor) return null;
       if (colorA === colorB) return colorA;
-      const carbonColor = atomColor({ el: 'C' });
       const bondLength = parseFloat(document.getElementById('optBondLen').value) || 40;
       const relativeLength = M.dist(a, b) / bondLength;
       if (relativeLength > 0.9 && relativeLength < 1.1) {
-        if (colorA === carbonColor) {
+        if (colorA === defBondColor) {
           if (!radialCache.has(b.id)) radialCache.set(b.id, addGradient('radialGradient', {
             cx: b.x, cy: b.y, r: bondLength
-          }, [['20%', colorB], ['80%', carbonColor]]));
+          }, [['20%', colorB], ['80%', defBondColor]]));
           return radialCache.get(b.id);
         }
-        if (colorB === carbonColor) {
+        if (colorB === defBondColor) {
           if (!radialCache.has(a.id)) radialCache.set(a.id, addGradient('radialGradient', {
             cx: a.x, cy: a.y, r: bondLength
-          }, [['20%', colorA], ['80%', carbonColor]]));
+          }, [['20%', colorA], ['80%', defBondColor]]));
           return radialCache.get(a.id);
         }
       }
@@ -339,7 +343,9 @@ window.ChemRender = (() => {
     // nửa còn lại giữ màu mặc định (hoặc màu đầu kia nếu đầu kia cũng có màu).
     // Cắt cứng tại giữa liên kết, dùng màu gốc (không pha trộng như shiny).
     function tintPaint(a, b) {
-      const colorA = atomColor(a), colorB = atomColor(b);
+      const colorA = (window.ChemTheme && window.ChemTheme.bondTintForAtom) ? window.ChemTheme.bondTintForAtom(a) : defBondColor;
+      const colorB = (window.ChemTheme && window.ChemTheme.bondTintForAtom) ? window.ChemTheme.bondTintForAtom(b) : defBondColor;
+      if (colorA === defBondColor && colorB === defBondColor) return null;
       if (colorA === colorB) return colorA;
       return addGradient('linearGradient', {
         x1: a.x, y1: a.y, x2: b.x, y2: b.y
@@ -349,7 +355,7 @@ window.ChemRender = (() => {
     for (const b of M.S.bonds) if (b.dbl) { b.dbl = false; b.cx = undefined; b.cy = undefined; }
     for (const g of M.S.rings) {
       if (!g.aromatic) continue;
-      if (o.circle) el('circle', { cx: g.cx, cy: g.cy, r: g.r * 0.52, fill: 'none', stroke: pal().ink, 'stroke-width': o.stroke * 0.8, 'class': 'arom-circle', 'data-ring-id': g.id }, world);
+      if (o.circle) el('circle', { cx: g.cx, cy: g.cy, r: g.r * 0.52, fill: 'none', stroke: bondColor(), 'stroke-width': o.stroke * 0.8, 'class': 'arom-circle', 'data-ring-id': g.id }, world);
       else if (o.kekule && g.dblIds) {
         for (const id of g.dblIds) {
           const b = M.bond(id);
@@ -426,16 +432,16 @@ window.ChemRender = (() => {
         class: 'valence-warning',
         'aria-label': `Invalid valence: ${a.el}`
       }, world);
-      if (M.isBareCarbon(a)) el('circle', { cx: a.x, cy: a.y, r: Math.max(1.6, o.stroke * 0.75), 'class': 'atom-dot', fill: a.color || pal().ink, 'data-aid': a.id }, world);
+      if (M.isBareCarbon(a)) el('circle', { cx: a.x, cy: a.y, r: Math.max(1.6, o.stroke * 0.75), 'class': 'atom-dot', fill: a.color || bondColor(), 'data-aid': a.id }, world);
       else drawLabel(world, a, o.font);
       el('circle', { cx: a.x, cy: a.y, r: 12, fill: 'rgba(0,0,0,0)', 'data-aid': a.id, style: 'pointer-events:all' }, world);
     }
     for (const t of M.S.texts) {
       if (t.type === 'arrow') {
-        drawArrow(el('g', { 'data-tid': t.id }, world), t, pal().ink);
+        drawArrow(el('g', { 'data-tid': t.id }, world), t, textDefaultColor());
         continue;
       }
-      const label = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': 'Arial, sans-serif', 'font-size': t.fontSize, fill: pal().ink, class: 'canvas-text', 'data-tid': t.id }, world);
+      const label = el('text', { x: t.x, y: t.y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': 'Arial, sans-serif', 'font-size': t.fontSize, fill: textDefaultColor(), class: 'canvas-text', 'data-tid': t.id }, world);
       drawTextContent(label, t.text, t.latex, t.fontSize || 20);
     }
     ChemExport.refreshCodeView();

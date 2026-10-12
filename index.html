@@ -248,6 +248,9 @@
             </section>
             <section class="chem-property-group">
               <h3>Màu mặc định của nhãn</h3>
+              <label class="chem-option chem-select-option">Hiển thị màu nhóm chức
+                <select id="settingsGroupColors"><option value="enabled" selected>Bật</option><option value="disabled">Tắt</option></select>
+              </label>
               <p class="muted">Áp dụng cho nhãn mới nếu chưa đặt màu riêng trong Thuộc tính.</p>
               <div class="settings-color-grid">
                 <label>N <input type="color" data-label-color="N"></label>
@@ -269,6 +272,19 @@
                 <label>OCH₃ <input type="color" data-label-color="OCH3"></label>
               </div>
               <button class="btn settings-reset-colors" data-action="reset-label-colors" type="button">Khôi phục màu nhãn mặc định</button>
+            </section>
+            <section class="chem-property-group">
+              <h3>Màu mặc định (liên kết, nguyên tử, chữ)</h3>
+              <p class="muted">Áp dụng khi đối tượng chưa đặt màu riêng (mặc định: đen trên nền sáng, trắng trên nền tối).</p>
+              <div class="settings-color-grid">
+                <label>Liên kết (sáng) <input id="optDefBondColorLight" type="color" value="#202124"></label>
+                <label>Liên kết (tối) <input id="optDefBondColorDark" type="color" value="#e8eaed"></label>
+                <label>Nguyên tử (sáng) <input id="optDefAtomColorLight" type="color" value="#202124"></label>
+                <label>Nguyên tử (tối) <input id="optDefAtomColorDark" type="color" value="#e8eaed"></label>
+                <label>Văn bản (sáng) <input id="optDefTextColorLight" type="color" value="#202124"></label>
+                <label>Văn bản (tối) <input id="optDefTextColorDark" type="color" value="#e8eaed"></label>
+              </div>
+              <button class="btn settings-reset-colors" data-action="reset-default-colors" type="button">Khôi phục màu mặc định</button>
             </section>
             <section class="chem-property-group">
               <h3>Chế độ hiển thị</h3>

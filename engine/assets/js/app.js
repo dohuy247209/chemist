@@ -178,6 +178,10 @@ window.ChemApp = (() => {
       const input = document.querySelector(`[data-label-color="${label}"]`);
       if (input) input.value = Th.elColor(label);
     });
+    // Khôi phục hiển thị màu nhóm chức & màu mặc định liên kết/nguyên tử/chữ.
+    const groupColorsSelect = document.getElementById('settingsGroupColors');
+    if (groupColorsSelect) groupColorsSelect.value = Th.getGroupColorsEnabled() ? 'enabled' : 'disabled';
+    syncDefaultColorsInputs();
     // Khôi phục hover / select color settings.
     const hoverSettings = Ed.getHoverSettings();
     const hoverEnabledSelect = document.getElementById('settingsHoverEnabled');
@@ -191,6 +195,21 @@ window.ChemApp = (() => {
     if (optSelectLight) optSelectLight.value = selectColors.light;
     const optSelectDark = document.getElementById('optSelectColorDark');
     if (optSelectDark) optSelectDark.value = selectColors.dark;
+  }
+  function syncDefaultColorsInputs() {
+    const def = Th.getDefaultColors();
+    const map = [
+      ['optDefBondColorLight', def.light.bond],
+      ['optDefBondColorDark',  def.dark.bond],
+      ['optDefAtomColorLight', def.light.atom],
+      ['optDefAtomColorDark',  def.dark.atom],
+      ['optDefTextColorLight', def.light.text],
+      ['optDefTextColorDark',  def.dark.text]
+    ];
+    for (const [id, val] of map) {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    }
   }
   // Đồng bộ panel cài đặt lưới với trạng thái thật của editor — gọi khi người
   // dùng đổi lưới/bắt điểm bằng nút toolbar hoặc phím tắt (G/T/Y) thay vì
@@ -262,6 +281,12 @@ window.ChemApp = (() => {
     if (optSL) optSL.value = selColors.light;
     const optSD = document.getElementById('optSelectColorDark');
     if (optSD) optSD.value = selColors.dark;
+    // Reset group colors & default colors.
+    Th.resetGroupColorsEnabled();
+    const gSelect = document.getElementById('settingsGroupColors');
+    if (gSelect) gSelect.value = 'enabled';
+    Th.resetDefaultColors();
+    syncDefaultColorsInputs();
     toast(text('Đã khôi phục cài đặt mặc định.', 'Settings restored to defaults.'));
   }
 
@@ -458,6 +483,12 @@ window.ChemApp = (() => {
       if (optSD) optSD.value = c.dark;
       Ed.redraw();
       toast(text('Đã khôi phục màu chọn mặc định.', 'Selection colors restored to defaults.'));
+    },
+    'reset-default-colors': () => {
+      Th.resetDefaultColors();
+      syncDefaultColorsInputs();
+      Ed.redraw();
+      toast(text('Đã khôi phục màu mặc định.', 'Default colors restored.'));
     },
     'reset-settings': resetSettings,
     'sample-ethanol': () => { place('Etanol'); toast(text('Đã đặt mẫu Etanol', 'Ethanol sample placed')); },
@@ -946,6 +977,28 @@ window.ChemApp = (() => {
         Ed.setSelectColor({ dark: e.target.value });
         Ed.redraw();
       }
+    });
+    // Hiển thị màu nhóm chức & màu mặc định liên kết / nguyên tử / chữ.
+    const groupColorsEl = document.getElementById('settingsGroupColors');
+    if (groupColorsEl) groupColorsEl.addEventListener('change', e => {
+      Th.setGroupColorsEnabled(e.target.value === 'enabled');
+      Ed.redraw();
+    });
+    [
+      ['optDefBondColorLight', 'bond', 'light'],
+      ['optDefBondColorDark',  'bond', 'dark'],
+      ['optDefAtomColorLight', 'atom', 'light'],
+      ['optDefAtomColorDark',  'atom', 'dark'],
+      ['optDefTextColorLight', 'text', 'light'],
+      ['optDefTextColorDark',  'text', 'dark']
+    ].forEach(([id, type, mode]) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', e => {
+        if (/^#[0-9a-f]{6}$/i.test(e.target.value)) {
+          Th.setDefaultColor(type, mode, e.target.value);
+          Ed.redraw();
+        }
+      });
     });
     document.getElementById('settingsGrid').addEventListener('change', e => {
       Ed.st.grid = e.target.value === 'enabled'; Ed.updateGrid(); saveSettings();

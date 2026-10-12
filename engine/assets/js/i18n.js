@@ -71,6 +71,15 @@ window.ChemI18n = (() => {
     'Khôi phục màu chọn mặc định': 'Reset default selection colors',
     'Đã khôi phục màu hover mặc định.': 'Hover colors restored to defaults.',
     'Đã khôi phục màu chọn mặc định.': 'Selection colors restored to defaults.',
+    'Hiển thị màu nhóm chức': 'Display functional group colors',
+    'Màu mặc định (liên kết, nguyên tử, chữ)': 'Default colors (bonds, atoms, text)',
+    'Áp dụng khi đối tượng chưa đặt màu riêng (mặc định: đen trên nền sáng, trắng trên nền tối).':
+      'Used when objects do not have a custom color (default: black on light theme, white on dark theme).',
+    'Liên kết (sáng)': 'Bonds (light)', 'Liên kết (tối)': 'Bonds (dark)',
+    'Nguyên tử (sáng)': 'Atoms (light)', 'Nguyên tử (tối)': 'Atoms (dark)',
+    'Văn bản (sáng)': 'Text (light)', 'Văn bản (tối)': 'Text (dark)',
+    'Khôi phục màu mặc định': 'Reset default colors',
+    'Đã khôi phục màu mặc định.': 'Default colors restored.',
     'Hiện lưới': 'Show grid', 'Bắt điểm vào lưới': 'Snap to grid', 'Loại lưới': 'Grid type', 'Trục lưới tam giác': 'Triangle grid axis',
     'Kiểm tra cấu trúc': 'Structure checks', 'Kiểm tra hóa trị tự động': 'Check valence automatically',
     'Nguyên tử vượt hóa trị cho phép được đánh dấu bằng vòng nét đứt màu đỏ.':

@@ -220,7 +220,7 @@ window.ChemTemplates = (() => {
   // Ảnh thu nhỏ cho sidebar — tự dựng từ fragment.
   // rotatePreview: mặc định (null) = tự xoay 90° nhóm "sugar" cho sidebar.
   // Truyền false để vẽ đúng hướng gốc (dùng cho ghost trên khung vẽ).
-  function thumb(frag, rotatePreviewOverride) {
+  function thumb(frag, rotatePreviewOverride, inkOverride) {
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
     const rotatePreview = rotatePreviewOverride != null
@@ -238,8 +238,13 @@ window.ChemTemplates = (() => {
     svg.setAttribute('viewBox', `${centerX - width / 2} ${centerY - height / 2} ${width} ${height}`);
     const drawing = document.createElementNS(NS, 'g');
     if (rotatePreview) drawing.setAttribute('transform', 'rotate(90)');
-    const col = window.ChemModel.elColor;
-    const ink = window.ChemTheme ? window.ChemTheme.palette().ink : '#202124';
+    const ink = inkOverride || (window.ChemTheme && window.ChemTheme.themeInk ? window.ChemTheme.themeInk() : (window.ChemTheme && window.ChemTheme.isDark() ? '#e8eaed' : '#202124'));
+    const col = el => {
+      if (window.ChemTheme && window.ChemTheme.hasSpecificColor && window.ChemTheme.hasSpecificColor(el)) {
+        return window.ChemTheme.elColor(el);
+      }
+      return ink;
+    };
     const mk = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
     for (const bd of frag.bonds) {
       const A = frag.atoms[bd[0]], B = frag.atoms[bd[1]];

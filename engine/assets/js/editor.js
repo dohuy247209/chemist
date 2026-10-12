@@ -408,7 +408,7 @@ window.ChemEditor = (() => {
       : `translate(${place.ox},${place.oy}) rotate(${angleDeg})`;
     const g = ov('g', { class: 'ghost', transform });
     // Dùng rotatePreview=false rồi tự xoay theo góc đặt — khớp hướng lúc đặt.
-    const thumb = window.ChemTemplates.thumb(frag, false);
+    const thumb = window.ChemTemplates.thumb(frag, false, (window.ChemTheme && window.ChemTheme.bondColor) ? window.ChemTheme.bondColor() : undefined);
     while (thumb.firstChild) g.appendChild(thumb.firstChild);
     // Nhãn giữ ngang như kết quả đặt thật (chữ KHÔNG xoay theo ghost).
     const labels = g.querySelectorAll('text');
@@ -433,7 +433,8 @@ window.ChemEditor = (() => {
     if (d.mode === 'bond' && d.cur) {
       const A = M.atom(d.from); if (!A) return;
       const g = ov('g', { class: 'ghost' });
-      ov('line', { x1: A.x, y1: A.y, x2: d.cur.x, y2: d.cur.y, stroke: window.ChemTheme.palette().ink, 'stroke-width': 2.5 }, g);
+      const bCol = (window.ChemTheme && window.ChemTheme.bondColor) ? window.ChemTheme.bondColor() : window.ChemTheme.palette().ink;
+      ov('line', { x1: A.x, y1: A.y, x2: d.cur.x, y2: d.cur.y, stroke: bCol, 'stroke-width': 2.5 }, g);
       if (!d.onAtom) ov('circle', { cx: d.cur.x, cy: d.cur.y, r: 5, fill: window.ChemTheme.palette().blue }, g);
       ov('circle', { cx: d.cur.x, cy: d.cur.y, r: 4, fill: window.ChemTheme.palette().blue, class: 'snapdot' }, g);
     } else if (d.mode === 'box') {
@@ -441,7 +442,8 @@ window.ChemEditor = (() => {
       ov('rect', { x, y, width: Math.abs(d.x1 - d.x0), height: Math.abs(d.y1 - d.y0), fill: 'rgba(11,87,208,.1)', stroke: '#0b57d0', 'stroke-dasharray': '4 3' });
     } else if (d.mode === 'chain' && d.cur) {
       const pts = chainPoints(d.start, d.cur);
-      ov('polyline', { points: pts.map(p => p.x + ',' + p.y).join(' '), fill: 'none', stroke: window.ChemTheme.palette().ink, 'stroke-width': 2.5, class: 'ghost' });
+      const bCol = (window.ChemTheme && window.ChemTheme.bondColor) ? window.ChemTheme.bondColor() : window.ChemTheme.palette().ink;
+      ov('polyline', { points: pts.map(p => p.x + ',' + p.y).join(' '), fill: 'none', stroke: bCol, 'stroke-width': 2.5, class: 'ghost' });
     } else if (d.mode === 'lasso') {
       ov('polyline', { points: d.points.map(p => p.x + ',' + p.y).join(' '), fill: 'none', stroke: window.ChemTheme.palette().blue, 'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-dasharray': '4 3' });
     }
