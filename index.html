@@ -53,7 +53,7 @@
             <button data-action="toggle-grid-type">Đổi lưới vuông / tam giác <kbd>T</kbd></button>
             <button data-action="toggle-grid-orientation">Đổi hướng trục tam giác và xoay cấu trúc</button>
             <button data-action="toggle-snap">Bật/tắt bắt điểm</button><hr>
-            <button data-action="toggle-shiny" aria-pressed="false">Bật/tắt phát sáng nhẹ</button><hr>
+            <button data-action="toggle-shiny" aria-pressed="false">Chế độ hiển thị: Mặc định</button><hr>
             <button data-action="toggle-theme">Giao diện tối / sáng <kbd>D</kbd></button>
           </div></div>
           <div class="menu"><button class="mbtn">Trợ giúp</button><div class="drop">
@@ -270,9 +270,9 @@
               <button class="btn settings-reset-colors" data-action="reset-label-colors" type="button">Khôi phục màu nhãn mặc định</button>
             </section>
             <section class="chem-property-group">
-              <h3>Hiệu ứng shiny</h3>
-              <label class="chem-option chem-select-option">Bật shiny
-                <select id="settingsShiny"><option value="disabled" selected>Tắt</option><option value="enabled">Bật</option></select>
+              <h3>Chế độ hiển thị</h3>
+              <label class="chem-option chem-select-option">Kiểu liên kết
+                <select id="settingsView"><option value="default" selected>Mặc định</option><option value="shiny">Shiny / phát sáng nhẹ</option><option value="tint">Nửa liên kết theo màu nhóm</option></select>
               </label>
               <label class="chem-option chem-range-option">Độ mạnh gradient <input id="optShinyIntensity" type="range" min="10" max="100" step="5" value="100"><b id="optShinyIntensityV">100%</b></label>
             </section>

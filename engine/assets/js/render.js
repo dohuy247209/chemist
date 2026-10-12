@@ -152,7 +152,7 @@ window.ChemRender = (() => {
     }
     return false;
   }
-  function drawBond(g, b, A, B, o, paint) {
+  function drawBond(g, b, A, B, o, paint, fullLength) {
     const M = window.ChemModel;
     // Cạnh "trước" của Haworth (v.v.): vẽ nét đơn nhưng đậm hơn bình thường.
     if (b.bold && b.style !== 'wedge' && b.style !== 'hash' && b.order !== 2 && b.order !== 3) {
@@ -164,7 +164,7 @@ window.ChemRender = (() => {
     }
     const w = o.stroke;
     const length = Math.hypot(B.x - A.x, B.y - A.y);
-    const [tA, tB] = paint ? [0, 0] : trims(A, B, o.font, length);
+    const [tA, tB] = fullLength ? [0, 0] : trims(A, B, o.font, length);
     const G = bondGeom(A, B, tA, tB);
     const availableLength = Math.hypot(G.x2 - G.x1, G.y2 - G.y1);
     const grp = el('g', { 'data-bid': b.id }, g);
@@ -224,8 +224,10 @@ window.ChemRender = (() => {
     const world = document.getElementById('world');
     while (world.firstChild) world.removeChild(world.firstChild);
     const o = currentOpts();
-    const shiny = document.getElementById('stage').classList.contains('shiny');
-    const defs = shiny ? el('defs', {}, world) : null;
+    const stageEl = document.getElementById('stage');
+    const shiny = stageEl.classList.contains('shiny');
+    const tint = stageEl.classList.contains('tint');
+    const defs = (shiny || tint) ? el('defs', {}, world) : null;
     const radialCache = new Map();
     let bondMask = null;
     if (shiny) {
@@ -254,12 +256,12 @@ window.ChemRender = (() => {
       return '#' + from.map((channel, i) => Math.round(to[i] + (channel - to[i]) * shinyStrength)
         .toString(16).padStart(2, '0')).join('');
     }
-    function addGradient(tag, attrs, colors) {
+    function addGradient(tag, attrs, colors, raw) {
       const id = `shinyGradient${gradientId++}`;
       const gradient = el(tag, Object.assign({ id, gradientUnits: 'userSpaceOnUse' }, attrs), defs);
       for (const [offset, color] of colors) el('stop', {
         offset,
-        'stop-color': gradientColor(color)
+        'stop-color': raw ? color : gradientColor(color)
       }, gradient);
       return `url(#${id})`;
     }
@@ -287,6 +289,16 @@ window.ChemRender = (() => {
         x1: a.x, y1: a.y, x2: b.x, y2: b.y
       }, [['20%', colorA], ['80%', colorB]]);
     }
+    // Chế độ "tint": nửa liên kết gần nhóm chức/nguyên tử có màu lấy màu đó,
+    // nửa còn lại giữ màu mặc định (hoặc màu đầu kia nếu đầu kia cũng có màu).
+    // Cắt cứng tại giữa liên kết, dùng màu gốc (không pha trộng như shiny).
+    function tintPaint(a, b) {
+      const colorA = atomColor(a), colorB = atomColor(b);
+      if (colorA === colorB) return colorA;
+      return addGradient('linearGradient', {
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y
+      }, [['0%', colorA], ['50%', colorA], ['50%', colorB], ['100%', colorB]], true);
+    }
     // 1) Vòng thơm: reset trạng thái kép do vòng sinh ra (riêng liên kết đôi người vẽ giữ nguyên order).
     for (const b of M.S.bonds) if (b.dbl) { b.dbl = false; b.cx = undefined; b.cy = undefined; }
     for (const g of M.S.rings) {
@@ -303,7 +315,13 @@ window.ChemRender = (() => {
     const bondLayer = shiny ? el('g', { mask: 'url(#shinyBondMask)' }, world) : world;
     for (const b of M.S.bonds) {
       const A = M.atom(b.a), B = M.atom(b.b);
-      if (A && B) drawBond(bondLayer, b, A, B, o, shiny && !b.color ? bondPaint(A, B) : null);
+      if (!A || !B) continue;
+      let paint = null, fullLength = false;
+      if (!b.color) {
+        if (shiny) { paint = bondPaint(A, B); fullLength = true; }
+        else if (tint) paint = tintPaint(A, B);
+      }
+      drawBond(bondLayer, b, A, B, o, paint, fullLength);
     }
     const invalidValence = o.valenceCheck ? new Set(M.valenceViolations()) : new Set();
     // 3) Vùng chọn phải có màu nền rõ ràng vì trang tích hợp không nạp stylesheet SVG của engine.

@@ -50,6 +50,9 @@ window.ChemI18n = (() => {
     'Vòng thơm vẽ vòng tròn trong': 'Draw aromatic rings as circles', 'Vòng thơm vẽ liên kết đôi xen kẽ (Kekulé)':
       'Draw alternating aromatic double bonds (Kekule)', 'Xem trước xuất bản': 'Export preview', 'Nền': 'Background',
     'Nền trong suốt': 'Transparent background', 'Hiệu ứng shiny': 'Shiny effect', 'Bật shiny': 'Enable shiny',
+    'Chế độ hiển thị': 'Display mode', 'Kiểu liên kết': 'Bond style',
+    'Mặc định': 'Default', 'Shiny / phát sáng nhẹ': 'Shiny / subtle glow',
+    'Nửa liên kết theo màu nhóm': 'Half-tinted bonds',
     'Độ mạnh gradient': 'Gradient strength', 'Màu mặc định của nhãn': 'Default label colors',
     'Áp dụng cho nhãn mới nếu chưa đặt màu riêng trong Thuộc tính.': 'Used for new labels unless overridden in Properties.',
     'Khôi phục màu nhãn mặc định': 'Reset default label colors', 'Khôi phục cài đặt ban đầu': 'Reset settings to defaults',

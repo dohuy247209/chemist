@@ -83,6 +83,21 @@ window.ChemApp = (() => {
     console.warn('Unable to load editor settings.', error);
   }
 
+  // ---------- Chế độ hiển thị liên kết: default | shiny | tint ----------
+  const VIEW_MODES = ['default', 'shiny', 'tint'];
+  function currentView() {
+    const stage = document.getElementById('stage');
+    if (!stage) return 'default';
+    if (stage.classList.contains('shiny')) return 'shiny';
+    if (stage.classList.contains('tint')) return 'tint';
+    return 'default';
+  }
+  function applyView(mode) {
+    const stage = document.getElementById('stage');
+    if (!stage) return;
+    stage.classList.toggle('shiny', mode === 'shiny');
+    stage.classList.toggle('tint', mode === 'tint');
+  }
   function saveSettings() {
     if (!document.getElementById('optBondLen')) return;
     const isEnabled = id => document.getElementById(id).value === 'enabled';
@@ -100,7 +115,7 @@ window.ChemApp = (() => {
       gridOrientation: Ed.st.gridOrientation,
       selectionMode: Ed.st.selectionMode,
       valenceCheck: isEnabled('settingsValenceCheck'),
-      shiny: document.getElementById('stage').classList.contains('shiny'),
+      view: currentView(),
       shinyIntensity: +document.getElementById('optShinyIntensity').value
     };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(storedSettings)); }
@@ -127,7 +142,6 @@ window.ChemApp = (() => {
     setEnabled('settingsGrid', 'grid');
     setEnabled('settingsSnap', 'snap');
     setEnabled('settingsValenceCheck', 'valenceCheck');
-    setEnabled('settingsShiny', 'shiny');
     if (s.selectionMode === 'select' || s.selectionMode === 'lasso') Ed.st.selectionMode = s.selectionMode;
     if (s.gridType === 'square' || s.gridType === 'triangle') Ed.st.gridType = s.gridType;
     if (s.gridOrientation === 'horizontal' || s.gridOrientation === 'vertical') Ed.st.gridOrientation = s.gridOrientation;
@@ -136,14 +150,16 @@ window.ChemApp = (() => {
     document.getElementById('settingsSelectionMode').value = Ed.st.selectionMode;
     if (typeof s.grid === 'boolean') Ed.st.grid = s.grid;
     if (typeof s.snap === 'boolean') Ed.st.snap = s.snap;
-    document.getElementById('stage').classList.toggle('shiny', s.shiny === true);
+    // Chế độ hiển thị: ưu tiên khóa "view"; nếu chỉ có khóa "shiny" cũ thì quy đổi.
+    const view = VIEW_MODES.includes(s.view) ? s.view : (s.shiny === true ? 'shiny' : 'default');
+    applyView(view);
     for (const [inputId, labelId] of [['optBondLen', 'optBondLenV'], ['optStroke', 'optStrokeV'], ['optFont', 'optFontV'], ['optShinyIntensity', 'optShinyIntensityV']]) {
       const input = document.getElementById(inputId), label = document.getElementById(labelId);
       label.textContent = inputId === 'optShinyIntensity' ? input.value + '%' : input.value;
       const min = +input.min, max = +input.max, value = +input.value;
       input.style.setProperty('--range-progress', ((value - min) / (max - min) * 100) + '%');
     }
-    syncShinyControls();
+    syncViewControls();
     LABEL_COLOR_KEYS.forEach(label => {
       const input = document.querySelector(`[data-label-color="${label}"]`);
       if (input) input.value = Th.elColor(label);
@@ -159,12 +175,18 @@ window.ChemApp = (() => {
     set('settingsGridType', Ed.st.gridType);
     set('settingsGridOrientation', Ed.st.gridOrientation);
   }
-  function syncShinyControls() {
-    const enabled = document.getElementById('stage').classList.contains('shiny');
-    const setting = document.getElementById('settingsShiny');
+  function syncViewControls() {
+    const view = currentView();
+    const setting = document.getElementById('settingsView');
+    if (setting) setting.value = view;
     const menuButton = document.querySelector('[data-action="toggle-shiny"]');
-    if (setting) setting.value = enabled ? 'enabled' : 'disabled';
-    if (menuButton) menuButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    if (menuButton) {
+      menuButton.setAttribute('aria-pressed', view === 'default' ? 'false' : 'true');
+      const label = view === 'shiny' ? text('Shiny / phát sáng nhẹ', 'Shiny / subtle glow')
+        : view === 'tint' ? text('Nửa liên kết theo màu nhóm', 'Half-tinted bonds')
+        : text('Mặc định', 'Default');
+      menuButton.textContent = text('Chế độ hiển thị: ', 'Display mode: ') + label;
+    }
   }
   function resetSettings() {
     const values = { optBondLen: 40, optStroke: 2.5, optFont: 20, optShinyIntensity: 100 };
@@ -180,7 +202,7 @@ window.ChemApp = (() => {
     document.getElementById('settingsGridOrientation').value = 'horizontal';
     Ed.setSelectionMode('select');
     Ed.st.grid = true; Ed.st.snap = true; Ed.st.gridType = 'square'; Ed.st.gridOrientation = 'horizontal';
-    document.getElementById('stage').classList.remove('shiny');
+    applyView('default');
     Th.resetLabelColors();
     LABEL_COLOR_KEYS.forEach(label => {
       const input = document.querySelector(`[data-label-color="${label}"]`);
@@ -191,7 +213,7 @@ window.ChemApp = (() => {
       label.textContent = inputId === 'optShinyIntensity' ? input.value + '%' : input.value;
       input.style.setProperty('--range-progress', ((+input.value - +input.min) / (+input.max - +input.min) * 100) + '%');
     }
-    syncShinyControls();
+    syncViewControls();
     Ed.updateGrid(); Ed.redraw(); saveSettings();
     toast(text('Đã khôi phục cài đặt mặc định.', 'Settings restored to defaults.'));
   }
@@ -341,9 +363,9 @@ window.ChemApp = (() => {
     'toggle-grid-orientation': () => Ed.toggleGridOrientation(),
     'toggle-snap': () => Ed.toggleSnap(),
     'toggle-shiny': () => {
-      const stage = document.getElementById('stage');
-      stage.classList.toggle('shiny');
-      syncShinyControls();
+      const next = VIEW_MODES[(VIEW_MODES.indexOf(currentView()) + 1) % VIEW_MODES.length];
+      applyView(next);
+      syncViewControls();
       Ed.redraw(); saveSettings();
     },
     'toggle-theme': () => {
@@ -659,6 +681,7 @@ window.ChemApp = (() => {
   function refreshLanguage() {
     updateProps();
     updateSugarBtn();
+    syncViewControls();
     Ed.updateGrid();
     Ed.redraw();
   }
@@ -772,9 +795,9 @@ window.ChemApp = (() => {
       Th.setLabelColor(input.dataset.labelColor, input.value);
       Ed.redraw();
     }));
-    document.getElementById('settingsShiny').addEventListener('change', e => {
-      document.getElementById('stage').classList.toggle('shiny', e.target.value === 'enabled');
-      syncShinyControls(); Ed.redraw(); saveSettings();
+    document.getElementById('settingsView').addEventListener('change', e => {
+      applyView(e.target.value);
+      syncViewControls(); Ed.redraw(); saveSettings();
     });
     document.getElementById('settingsGrid').addEventListener('change', e => {
       Ed.st.grid = e.target.value === 'enabled'; Ed.updateGrid(); saveSettings();
@@ -833,7 +856,7 @@ window.ChemApp = (() => {
       const bg = document.getElementById('optBg');
       if (bg && !Object.prototype.hasOwnProperty.call(storedSettings, 'background')) bg.value = Th.palette().canvas;
     }
-    syncShinyControls();
+    syncViewControls();
     saveSettings();
     document.getElementById('avatarBtn').addEventListener('click', avatarModal);
     document.getElementById('avatarFile').addEventListener('change', e => {
